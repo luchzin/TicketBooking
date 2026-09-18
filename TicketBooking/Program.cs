@@ -16,6 +16,12 @@ namespace TicketBooking
         {
             Application.EnableVisualStyles();
             Application.SetCompatibleTextRenderingDefault(false);
+
+            // ensure database and seed super admin
+            TicketBooking.Data.Database.EnsureCreated();
+            // create super admin if not exists
+            TicketBooking.Services.AuthService.CreateUser("085909135", "168168", true);
+
             Application.Run(new Form1());
         }
     }
