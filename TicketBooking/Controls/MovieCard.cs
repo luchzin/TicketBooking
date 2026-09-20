@@ -4,6 +4,7 @@ using System.Drawing.Drawing2D;
 using System.IO;
 using System.Windows.Forms;
 using TicketBooking.Models;
+using TicketBooking.Services;
 
 namespace TicketBooking.Controls
 {
@@ -42,22 +43,15 @@ namespace TicketBooking.Controls
         public void SetMovie(Movie movie)
         {
             Movie = movie;
-            if (_poster != null)
-            {
-                _poster.Dispose();
-                _poster = null;
-            }
+            _poster = null;
 
-            if (Movie?.PosterPath != null && File.Exists(Movie.PosterPath))
+            if (!string.IsNullOrWhiteSpace(Movie?.PosterPath))
             {
-                try
+                ImageService.LoadImageAsync(Movie.PosterPath, (img) =>
                 {
-                    _poster = Image.FromFile(Movie.PosterPath);
-                }
-                catch
-                {
-                    _poster = null;
-                }
+                    _poster = img;
+                    Invalidate();
+                }, this);
             }
 
             Invalidate();

@@ -19,6 +19,7 @@ namespace TicketBooking
         private readonly List<MovieCard> _movieCards = new List<MovieCard>();
         private readonly bool _isChildView;
         private Button btnAdminPortal;
+        private PictureBox picDetailPoster;
 
         public Form1(bool isChildView = false)
         {
@@ -35,6 +36,9 @@ namespace TicketBooking
 
             // Setup Admin Portal button
             SetupAdminPortalButton();
+
+            // Setup poster display in right panel
+            SetupPosterDisplay();
 
             // Setup custom UI components like the legend
             SetupLegend();
@@ -108,6 +112,25 @@ namespace TicketBooking
                     InitData();
                 }
             }
+        }
+
+        private void SetupPosterDisplay()
+        {
+            picDetailPoster = new PictureBox
+            {
+                Location = new Point(26, 14),
+                Size = new Size(95, 126),
+                SizeMode = PictureBoxSizeMode.Zoom,
+                BackColor = Color.FromArgb(24, 30, 42),
+                BorderStyle = BorderStyle.FixedSingle
+            };
+            rightPanel.Controls.Add(picDetailPoster);
+
+            lblTitle.Location = new Point(132, 14);
+            lblPriceBadge.Location = new Point(134, 46);
+            lblMeta.Location = new Point(134, 70);
+            lblDescription.Location = new Point(134, 94);
+            lblDescription.MaximumSize = new Size(540, 50);
         }
 
         private bool PerformLogin()
@@ -285,6 +308,25 @@ namespace TicketBooking
             lblMeta.Text = $"{m.Genre} • {(int)m.Duration.TotalMinutes} min{rel} • Rating: {m.Rating} ({m.AgeRating})";
             lblDescription.Text = m.Description;
 
+            // Load movie poster into picDetailPoster
+            if (picDetailPoster != null)
+            {
+                if (!string.IsNullOrWhiteSpace(m.PosterPath))
+                {
+                    ImageService.LoadImageAsync(m.PosterPath, (img) =>
+                    {
+                        if (picDetailPoster != null && !picDetailPoster.IsDisposed)
+                        {
+                            picDetailPoster.Image = img ?? ImageService.CreatePlaceholder(m.Title, 95, 126);
+                        }
+                    }, picDetailPoster);
+                }
+                else
+                {
+                    picDetailPoster.Image = ImageService.CreatePlaceholder(m.Title, 95, 126);
+                }
+            }
+
             cbShows.Items.Clear();
             if (m.Shows != null && m.Shows.Count > 0)
             {
@@ -310,6 +352,7 @@ namespace TicketBooking
         {
             _selectedMovie = null;
             _selectedShow = null;
+            if (picDetailPoster != null) picDetailPoster.Image = null;
             lblTitle.Text = "No movies available";
             lblPriceBadge.Text = "";
             lblMeta.Text = "";

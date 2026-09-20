@@ -10,6 +10,11 @@ namespace TicketBooking.Models
         public string Genre { get; set; } = string.Empty;
         public TimeSpan Duration { get; set; }
         public string PosterPath { get; set; } = string.Empty;
+        public string ImageUrl
+        {
+            get => PosterPath;
+            set => PosterPath = value;
+        }
         public string Description { get; set; } = string.Empty;
         public decimal Price { get; set; } = 12.00m;
         public string Rating { get; set; } = "8.5/10";

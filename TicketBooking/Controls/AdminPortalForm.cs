@@ -35,6 +35,7 @@ namespace TicketBooking.Controls
         // Tab 1: Movies & Shows
         private DataGridView dgvMovies;
         private DataGridView dgvShows;
+        private PictureBox picMovieThumb;
         private Label lblSelectedMovieTitle;
         private Button btnAddShowUnderGrid;
         private Button btnDeleteShowUnderGrid;
@@ -254,6 +255,7 @@ namespace TicketBooking.Controls
             dgvMovies.Columns.Add("Id", "ID");
             dgvMovies.Columns.Add("Title", "Movie Title");
             dgvMovies.Columns.Add("ReleaseDate", "Came Out Date");
+            dgvMovies.Columns.Add("Poster", "Poster");
             dgvMovies.Columns.Add("Genre", "Genre");
             dgvMovies.Columns.Add("Duration", "Duration");
             dgvMovies.Columns.Add("Price", "Ticket Price");
@@ -262,14 +264,15 @@ namespace TicketBooking.Controls
             dgvMovies.Columns.Add("ShowsCount", "Showtimes");
 
             dgvMovies.Columns["Id"].Width = 45;
-            dgvMovies.Columns["Title"].Width = 180;
-            dgvMovies.Columns["ReleaseDate"].Width = 110;
-            dgvMovies.Columns["Genre"].Width = 140;
-            dgvMovies.Columns["Duration"].Width = 85;
-            dgvMovies.Columns["Price"].Width = 90;
-            dgvMovies.Columns["Rating"].Width = 70;
-            dgvMovies.Columns["AgeRating"].Width = 65;
-            dgvMovies.Columns["ShowsCount"].Width = 80;
+            dgvMovies.Columns["Title"].Width = 170;
+            dgvMovies.Columns["ReleaseDate"].Width = 105;
+            dgvMovies.Columns["Poster"].Width = 65;
+            dgvMovies.Columns["Genre"].Width = 130;
+            dgvMovies.Columns["Duration"].Width = 80;
+            dgvMovies.Columns["Price"].Width = 85;
+            dgvMovies.Columns["Rating"].Width = 65;
+            dgvMovies.Columns["AgeRating"].Width = 60;
+            dgvMovies.Columns["ShowsCount"].Width = 75;
 
             dgvMovies.SelectionChanged += DgvMovies_SelectionChanged;
             pnlTopMovies.Controls.Add(dgvMovies);
@@ -281,12 +284,22 @@ namespace TicketBooking.Controls
 
             var pnlShowBar = new Panel { Dock = DockStyle.Top, Height = 36 };
 
+            picMovieThumb = new PictureBox
+            {
+                Location = new Point(0, 2),
+                Size = new Size(26, 32),
+                SizeMode = PictureBoxSizeMode.Zoom,
+                BackColor = Color.FromArgb(24, 30, 42),
+                BorderStyle = BorderStyle.FixedSingle
+            };
+            pnlShowBar.Controls.Add(picMovieThumb);
+
             lblSelectedMovieTitle = new Label
             {
                 Text = "🕒 Scheduled Showtimes for Selected Movie:",
                 Font = new Font("Segoe UI", 9.5F, FontStyle.Bold),
                 ForeColor = Color.FromArgb(0, 190, 160),
-                Location = new Point(0, 8),
+                Location = new Point(34, 8),
                 AutoSize = true
             };
             pnlShowBar.Controls.Add(lblSelectedMovieTitle);
@@ -560,6 +573,7 @@ namespace TicketBooking.Controls
                     m.Id,
                     m.Title,
                     m.ReleaseDateFormatted,
+                    string.IsNullOrWhiteSpace(m.PosterPath) ? "No" : "🖼️ Yes",
                     m.Genre,
                     $"{m.Duration.TotalMinutes} min",
                     $"${m.Price:N2}",
@@ -576,6 +590,7 @@ namespace TicketBooking.Controls
             else
             {
                 _selectedMovie = null;
+                picMovieThumb.Image = null;
                 dgvShows.Rows.Clear();
                 lblSelectedMovieTitle.Text = "🕒 Scheduled Showtimes for Selected Movie: (None)";
             }
@@ -595,6 +610,7 @@ namespace TicketBooking.Controls
         {
             _selectedMovie = m;
             lblSelectedMovieTitle.Text = $"🕒 Showtimes for: {m.Title} (Came out: {m.ReleaseDateFormatted})";
+            ImageService.LoadImageAsync(m.PosterPath, picMovieThumb, m.Title);
 
             dgvShows.Rows.Clear();
             if (m.Shows == null) return;

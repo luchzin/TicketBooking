@@ -169,7 +169,7 @@ namespace TicketBooking.Services
             return set;
         }
 
-        public static int AddMovieWithShow(string title, string genre, int durationMinutes, string description, decimal price, DateTime showTime, string hallName, string rating = "8.5/10", string ageRating = "PG-13", DateTime? releaseDate = null, int rows = 6, int cols = 8)
+        public static int AddMovieWithShow(string title, string genre, int durationMinutes, string description, decimal price, DateTime showTime, string hallName, string rating = "8.5/10", string ageRating = "PG-13", DateTime? releaseDate = null, string posterPath = "", int rows = 6, int cols = 8)
         {
             using (var conn = Database.GetConnection())
             using (var trans = conn.BeginTransaction())
@@ -180,13 +180,14 @@ namespace TicketBooking.Services
                     cmd.Transaction = trans;
                     cmd.CommandText = @"
 INSERT INTO Movies (Title, Genre, DurationMinutes, Description, PosterPath, Price, Rating, AgeRating, ReleaseDate)
-VALUES ($t, $g, $d, $desc, '', $p, $rat, $age, $rd);
+VALUES ($t, $g, $d, $desc, $pstr, $p, $rat, $age, $rd);
 SELECT last_insert_rowid();
 ";
                     cmd.Parameters.AddWithValue("$t", title ?? "");
                     cmd.Parameters.AddWithValue("$g", genre ?? "");
                     cmd.Parameters.AddWithValue("$d", durationMinutes);
                     cmd.Parameters.AddWithValue("$desc", description ?? "");
+                    cmd.Parameters.AddWithValue("$pstr", posterPath ?? "");
                     cmd.Parameters.AddWithValue("$p", (double)price);
                     cmd.Parameters.AddWithValue("$rat", rating ?? "8.5/10");
                     cmd.Parameters.AddWithValue("$age", ageRating ?? "PG-13");
@@ -223,13 +224,14 @@ VALUES ($mid, $st, $hn, $r, $c);
             {
                 cmd.CommandText = @"
 UPDATE Movies
-SET Title = $t, Genre = $g, DurationMinutes = $d, Description = $desc, Price = $p, Rating = $rat, AgeRating = $age, ReleaseDate = $rd
+SET Title = $t, Genre = $g, DurationMinutes = $d, Description = $desc, PosterPath = $pstr, Price = $p, Rating = $rat, AgeRating = $age, ReleaseDate = $rd
 WHERE Id = $id;
 ";
                 cmd.Parameters.AddWithValue("$t", movie.Title ?? "");
                 cmd.Parameters.AddWithValue("$g", movie.Genre ?? "");
                 cmd.Parameters.AddWithValue("$d", (int)movie.Duration.TotalMinutes);
                 cmd.Parameters.AddWithValue("$desc", movie.Description ?? "");
+                cmd.Parameters.AddWithValue("$pstr", movie.PosterPath ?? "");
                 cmd.Parameters.AddWithValue("$p", (double)movie.Price);
                 cmd.Parameters.AddWithValue("$rat", movie.Rating ?? "8.5/10");
                 cmd.Parameters.AddWithValue("$age", movie.AgeRating ?? "PG-13");
