@@ -151,11 +151,12 @@ namespace TicketBooking.Controls
                 }
                 y += 24;
 
-                // Genre and duration
+                // Genre, duration and Came Out date
                 using (var metaFont = new Font("Segoe UI", 8F))
                 using (var metaBrush = new SolidBrush(Color.FromArgb(160, 175, 195)))
                 {
-                    string meta = $"{Movie.Genre} • {(int)Movie.Duration.TotalMinutes}m";
+                    string relText = Movie.ReleaseDate.HasValue ? $" • {Movie.ReleaseDate.Value:yyyy-MM-dd}" : "";
+                    string meta = $"{Movie.Genre} • {(int)Movie.Duration.TotalMinutes}m{relText}";
                     g.DrawString(meta, metaFont, metaBrush, x, y);
                 }
                 y += 20;

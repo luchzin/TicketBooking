@@ -1,4 +1,5 @@
 using System;
+using System.Collections.Generic;
 using System.Text.RegularExpressions;
 using Microsoft.Data.Sqlite;
 using BCrypt.Net;
@@ -9,56 +10,246 @@ namespace TicketBooking.Services
 {
     public static class AuthService
     {
-        public static bool CreateUser(string phone, string password, bool isAdmin, out string errorMessage)
+        public static AuthResult Login(LoginRequest request)
         {
-            errorMessage = string.Empty;
-            phone = phone?.Trim();
+            if (request == null) return AuthResult.Fail("Empty request.");
+
+            string phone = request.Phone?.Trim();
+            string pass = request.Password;
+
+            if (string.IsNullOrEmpty(phone) || string.IsNullOrEmpty(pass))
+            {
+                return AuthResult.Fail("Please enter both phone number and password.");
+            }
+
+            using (var conn = Database.GetConnection())
+            using (var cmd = conn.CreateCommand())
+            {
+                cmd.CommandText = "SELECT Id, Phone, FullName, Email, PasswordHash, IsAdmin, CreatedAt FROM Users WHERE Phone = $p LIMIT 1";
+                cmd.Parameters.AddWithValue("$p", phone);
+
+                using (var r = cmd.ExecuteReader())
+                {
+                    if (!r.Read())
+                    {
+                        return AuthResult.Fail("No account found with this phone number.");
+                    }
+
+                    int id = r.GetInt32(0);
+                    string dbPhone = r.GetString(1);
+                    string fullName = r.IsDBNull(2) ? "" : r.GetString(2);
+                    string email = r.IsDBNull(3) ? "" : r.GetString(3);
+                    string hash = r.GetString(4);
+                    bool isAdmin = r.GetInt32(5) == 1;
+                    DateTime createdAt;
+                    DateTime.TryParse(r.GetString(6), out createdAt);
+
+                    if (!BCrypt.Net.BCrypt.Verify(pass, hash))
+                    {
+                        return AuthResult.Fail("Incorrect password. Please try again.");
+                    }
+
+                    var user = new User
+                    {
+                        Id = id,
+                        Phone = dbPhone,
+                        FullName = fullName,
+                        Email = email,
+                        IsAdmin = isAdmin,
+                        CreatedAt = createdAt
+                    };
+
+                    return AuthResult.Ok(user);
+                }
+            }
+        }
+
+        public static AuthResult Register(RegisterRequest request)
+        {
+            if (request == null) return AuthResult.Fail("Empty registration request.");
+
+            string phone = request.Phone?.Trim();
+            string fullName = request.FullName?.Trim() ?? "";
+            string email = request.Email?.Trim() ?? "";
+            string p1 = request.Password;
+            string p2 = request.ConfirmPassword;
 
             if (string.IsNullOrWhiteSpace(phone))
             {
-                errorMessage = "Phone number is required.";
-                return false;
+                return AuthResult.Fail("Phone number is required.");
             }
 
             if (phone.Length < 6 || !Regex.IsMatch(phone, @"^[0-9+\- ]+$"))
             {
-                errorMessage = "Phone number must be at least 6 digits.";
-                return false;
+                return AuthResult.Fail("Phone number must contain at least 6 digits.");
             }
 
-            if (string.IsNullOrEmpty(password) || password.Length < 4)
+            if (string.IsNullOrEmpty(p1) || p1.Length < 4)
             {
-                errorMessage = "Password must be at least 4 characters.";
-                return false;
+                return AuthResult.Fail("Password must be at least 4 characters.");
             }
 
-            var hash = BCrypt.Net.BCrypt.HashPassword(password);
+            if (p1 != p2)
+            {
+                return AuthResult.Fail("Passwords do not match.");
+            }
+
+            var hash = BCrypt.Net.BCrypt.HashPassword(p1);
+
             using (var conn = Database.GetConnection())
             using (var cmd = conn.CreateCommand())
             {
-                cmd.CommandText = "INSERT INTO Users (Phone, PasswordHash, IsAdmin, CreatedAt) VALUES ($p, $h, $a, $t)";
+                cmd.CommandText = @"
+INSERT INTO Users (Phone, FullName, Email, PasswordHash, IsAdmin, CreatedAt)
+VALUES ($p, $fn, $em, $h, $a, $t);
+SELECT last_insert_rowid();
+";
                 cmd.Parameters.AddWithValue("$p", phone);
+                cmd.Parameters.AddWithValue("$fn", fullName);
+                cmd.Parameters.AddWithValue("$em", email);
                 cmd.Parameters.AddWithValue("$h", hash);
-                cmd.Parameters.AddWithValue("$a", isAdmin ? 1 : 0);
+                cmd.Parameters.AddWithValue("$a", request.IsAdmin ? 1 : 0);
                 cmd.Parameters.AddWithValue("$t", DateTime.Now.ToString("yyyy-MM-dd HH:mm:ss"));
+
                 try
                 {
-                    cmd.ExecuteNonQuery();
-                    return true;
+                    int newId = Convert.ToInt32(cmd.ExecuteScalar());
+                    var newUser = new User
+                    {
+                        Id = newId,
+                        Phone = phone,
+                        FullName = fullName,
+                        Email = email,
+                        IsAdmin = request.IsAdmin,
+                        CreatedAt = DateTime.Now
+                    };
+                    return AuthResult.Ok(newUser);
                 }
                 catch (SqliteException ex)
                 {
                     if (ex.SqliteErrorCode == 19 || ex.Message.ToLower().Contains("unique"))
                     {
-                        errorMessage = "An account with this phone number already exists.";
+                        return AuthResult.Fail("An account with this phone number already exists.");
                     }
-                    else
-                    {
-                        errorMessage = ex.Message;
-                    }
-                    return false;
+                    return AuthResult.Fail("Database error: " + ex.Message);
                 }
             }
+        }
+
+        public static List<User> GetAllUsers()
+        {
+            var list = new List<User>();
+            using (var conn = Database.GetConnection())
+            using (var cmd = conn.CreateCommand())
+            {
+                cmd.CommandText = "SELECT Id, Phone, FullName, Email, IsAdmin, CreatedAt FROM Users ORDER BY Id ASC";
+                using (var r = cmd.ExecuteReader())
+                {
+                    while (r.Read())
+                    {
+                        DateTime created;
+                        DateTime.TryParse(r.IsDBNull(5) ? "" : r.GetString(5), out created);
+
+                        list.Add(new User
+                        {
+                            Id = r.GetInt32(0),
+                            Phone = r.GetString(1),
+                            FullName = r.IsDBNull(2) ? "" : r.GetString(2),
+                            Email = r.IsDBNull(3) ? "" : r.GetString(3),
+                            IsAdmin = r.GetInt32(4) == 1,
+                            CreatedAt = created
+                        });
+                    }
+                }
+            }
+            return list;
+        }
+
+        public static AuthResult ChangePassword(int userId, string oldPassword, string newPassword)
+        {
+            if (string.IsNullOrEmpty(newPassword) || newPassword.Length < 4)
+            {
+                return AuthResult.Fail("New password must be at least 4 characters.");
+            }
+
+            using (var conn = Database.GetConnection())
+            {
+                // Verify old password
+                string currentHash = null;
+                using (var cmd = conn.CreateCommand())
+                {
+                    cmd.CommandText = "SELECT PasswordHash FROM Users WHERE Id = $id";
+                    cmd.Parameters.AddWithValue("$id", userId);
+                    var res = cmd.ExecuteScalar();
+                    if (res != null) currentHash = res.ToString();
+                }
+
+                if (currentHash == null || !BCrypt.Net.BCrypt.Verify(oldPassword, currentHash))
+                {
+                    return AuthResult.Fail("Current password is incorrect.");
+                }
+
+                // Update hash
+                string newHash = BCrypt.Net.BCrypt.HashPassword(newPassword);
+                using (var updateCmd = conn.CreateCommand())
+                {
+                    updateCmd.CommandText = "UPDATE Users SET PasswordHash = $h WHERE Id = $id";
+                    updateCmd.Parameters.AddWithValue("$h", newHash);
+                    updateCmd.Parameters.AddWithValue("$id", userId);
+                    updateCmd.ExecuteNonQuery();
+                }
+
+                return AuthResult.Ok(null);
+            }
+        }
+
+        // Backward compatibility overloads
+        public static bool ValidateUser(string phone, string password, out User user)
+        {
+            var res = Login(new LoginRequest { Phone = phone, Password = password });
+            user = res.User;
+            return res.Success;
+        }
+
+        public static bool ValidateUser(string phone, string password, out bool isAdmin)
+        {
+            isAdmin = false;
+            var res = Login(new LoginRequest { Phone = phone, Password = password });
+            if (res.Success && res.User != null)
+            {
+                isAdmin = res.User.IsAdmin;
+                return true;
+            }
+            return false;
+        }
+
+        public static bool UserExists(string phone)
+        {
+            if (string.IsNullOrWhiteSpace(phone)) return false;
+            using (var conn = Database.GetConnection())
+            using (var cmd = conn.CreateCommand())
+            {
+                cmd.CommandText = "SELECT 1 FROM Users WHERE Phone = $p LIMIT 1";
+                cmd.Parameters.AddWithValue("$p", phone.Trim());
+                var res = cmd.ExecuteScalar();
+                return res != null && res != DBNull.Value;
+            }
+        }
+
+        public static bool CreateUser(string phone, string password, bool isAdmin, out string errorMessage)
+        {
+            errorMessage = string.Empty;
+            if (UserExists(phone)) return true;
+
+            var res = Register(new RegisterRequest
+            {
+                Phone = phone,
+                Password = password,
+                ConfirmPassword = password,
+                IsAdmin = isAdmin
+            });
+            errorMessage = res.ErrorMessage;
+            return res.Success;
         }
 
         public static bool CreateUser(string phone, string password, bool isAdmin = false)
@@ -67,51 +258,20 @@ namespace TicketBooking.Services
             return CreateUser(phone, password, isAdmin, out err);
         }
 
-        public static bool ValidateUser(string phone, string password, out User user)
+        public static bool CreateUser(string phone, string password, bool isAdmin, string fullName, string email)
         {
-            user = null;
-            phone = phone?.Trim();
-            if (string.IsNullOrEmpty(phone) || string.IsNullOrEmpty(password))
-                return false;
+            if (UserExists(phone)) return true;
 
-            using (var conn = Database.GetConnection())
-            using (var cmd = conn.CreateCommand())
+            var res = Register(new RegisterRequest
             {
-                cmd.CommandText = "SELECT Id, Phone, PasswordHash, IsAdmin FROM Users WHERE Phone = $p LIMIT 1";
-                cmd.Parameters.AddWithValue("$p", phone);
-                using (var r = cmd.ExecuteReader())
-                {
-                    if (!r.Read()) return false;
-                    int id = r.GetInt32(0);
-                    string dbPhone = r.GetString(1);
-                    string hash = r.GetString(2);
-                    bool isAdmin = r.GetInt32(3) == 1;
-
-                    if (BCrypt.Net.BCrypt.Verify(password, hash))
-                    {
-                        user = new User
-                        {
-                            Id = id,
-                            Phone = dbPhone,
-                            IsAdmin = isAdmin
-                        };
-                        return true;
-                    }
-                    return false;
-                }
-            }
-        }
-
-        public static bool ValidateUser(string phone, string password, out bool isAdmin)
-        {
-            isAdmin = false;
-            User u;
-            if (ValidateUser(phone, password, out u))
-            {
-                isAdmin = u.IsAdmin;
-                return true;
-            }
-            return false;
+                Phone = phone,
+                FullName = fullName,
+                Email = email,
+                Password = password,
+                ConfirmPassword = password,
+                IsAdmin = isAdmin
+            });
+            return res.Success;
         }
     }
 }

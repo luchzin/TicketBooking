@@ -32,5 +32,13 @@ namespace TicketBooking.Controls
             path.CloseFigure();
             return path;
         }
+
+        public static void SetDoubleBuffered(this System.Windows.Forms.Control control, bool enabled = true)
+        {
+            if (control == null) return;
+            var prop = typeof(System.Windows.Forms.Control).GetProperty("DoubleBuffered",
+                System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Instance);
+            prop?.SetValue(control, enabled, null);
+        }
     }
 }

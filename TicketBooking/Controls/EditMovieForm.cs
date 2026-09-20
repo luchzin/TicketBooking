@@ -1,12 +1,15 @@
 using System;
 using System.Drawing;
 using System.Windows.Forms;
+using TicketBooking.Models;
 using TicketBooking.Services;
 
 namespace TicketBooking.Controls
 {
-    public class AddMovieForm : Form
+    public class EditMovieForm : Form
     {
+        private readonly Movie _movie;
+
         private TextBox txtTitle;
         private ComboBox cbGenre;
         private DateTimePicker dtpReleaseDate;
@@ -14,34 +17,34 @@ namespace TicketBooking.Controls
         private NumericUpDown numPrice;
         private TextBox txtRating;
         private ComboBox cbAgeRating;
-        private DateTimePicker dtpShowTime;
-        private ComboBox cbHall;
         private TextBox txtDescription;
         private Button btnSave;
         private Button btnCancel;
         private Label lblError;
 
-        public AddMovieForm()
+        public EditMovieForm(Movie movie)
         {
+            _movie = movie ?? throw new ArgumentNullException(nameof(movie));
             this.SetDoubleBuffered(true);
             InitializeCustomUi();
+            LoadMovieData();
         }
 
         private void InitializeCustomUi()
         {
-            Text = "Admin - Add Movie & Schedule Screening";
+            Text = $"Admin - Edit Movie: {_movie.Title}";
             StartPosition = FormStartPosition.CenterParent;
             FormBorderStyle = FormBorderStyle.FixedDialog;
             MaximizeBox = false;
             MinimizeBox = false;
-            ClientSize = new Size(520, 640);
+            ClientSize = new Size(520, 560);
             BackColor = Color.FromArgb(20, 24, 34);
             ForeColor = Color.White;
             Font = new Font("Segoe UI", 9F, FontStyle.Regular);
 
             var lblHeader = new Label
             {
-                Text = "🎬 Add New Movie & Set Screening Schedule",
+                Text = "✏️ Edit Movie Details & Came Out Date",
                 Font = new Font("Segoe UI", 12.5F, FontStyle.Bold),
                 ForeColor = Color.FromArgb(0, 190, 160),
                 Location = new Point(22, 14),
@@ -52,7 +55,7 @@ namespace TicketBooking.Controls
             int top = 48;
             int inputW = 470;
 
-            // Movie Title
+            // Title
             var lblTitle = new Label { Text = "Movie Title *", ForeColor = Color.FromArgb(210, 220, 235), Location = new Point(22, top), AutoSize = true };
             top += 20;
             txtTitle = new TextBox { Location = new Point(24, top), Width = inputW, Font = new Font("Segoe UI", 10F), BackColor = Color.FromArgb(32, 38, 52), ForeColor = Color.White, BorderStyle = BorderStyle.FixedSingle };
@@ -60,9 +63,9 @@ namespace TicketBooking.Controls
             Controls.Add(txtTitle);
             top += 35;
 
-            // Genre & Came Out Date (Release Date)
+            // Genre & Came Out Date
             var lblGenre = new Label { Text = "Genre", ForeColor = Color.FromArgb(210, 220, 235), Location = new Point(22, top), AutoSize = true };
-            var lblRelease = new Label { Text = "Came Out Date (Release Date) *", ForeColor = Color.FromArgb(210, 220, 235), Location = new Point(265, top), AutoSize = true };
+            var lblRelease = new Label { Text = "Came Out Date (Release Date)", ForeColor = Color.FromArgb(210, 220, 235), Location = new Point(265, top), AutoSize = true };
             top += 20;
 
             cbGenre = new ComboBox
@@ -75,7 +78,6 @@ namespace TicketBooking.Controls
                 ForeColor = Color.White
             };
             cbGenre.Items.AddRange(new object[] { "Action / Adventure", "Sci-Fi / Cyberpunk", "Drama / Music", "Comedy / Romance", "Thriller / Mystery", "Animation / Family", "Horror / Suspense" });
-            cbGenre.SelectedIndex = 0;
 
             dtpReleaseDate = new DateTimePicker
             {
@@ -93,16 +95,17 @@ namespace TicketBooking.Controls
             Controls.Add(dtpReleaseDate);
             top += 38;
 
-            // Duration & Ticket Price
-            var lblDuration = new Label { Text = "Duration (minutes)", ForeColor = Color.FromArgb(210, 220, 235), Location = new Point(22, top), AutoSize = true };
-            var lblPrice = new Label { Text = "Ticket Price ($)", ForeColor = Color.FromArgb(210, 220, 235), Location = new Point(185, top), AutoSize = true };
-            var lblRating = new Label { Text = "Rating", ForeColor = Color.FromArgb(210, 220, 235), Location = new Point(345, top), AutoSize = true };
+            // Duration & Price & Rating
+            var lblDuration = new Label { Text = "Duration (min)", ForeColor = Color.FromArgb(210, 220, 235), Location = new Point(22, top), AutoSize = true };
+            var lblPrice = new Label { Text = "Ticket Price ($)", ForeColor = Color.FromArgb(210, 220, 235), Location = new Point(155, top), AutoSize = true };
+            var lblRating = new Label { Text = "Rating", ForeColor = Color.FromArgb(210, 220, 235), Location = new Point(285, top), AutoSize = true };
+            var lblAge = new Label { Text = "Age Rating", ForeColor = Color.FromArgb(210, 220, 235), Location = new Point(400, top), AutoSize = true };
             top += 20;
 
             numDuration = new NumericUpDown
             {
                 Location = new Point(24, top),
-                Width = 145,
+                Width = 120,
                 Minimum = 30,
                 Maximum = 360,
                 Value = 120,
@@ -113,12 +116,12 @@ namespace TicketBooking.Controls
 
             numPrice = new NumericUpDown
             {
-                Location = new Point(185, top),
-                Width = 145,
+                Location = new Point(155, top),
+                Width = 120,
                 DecimalPlaces = 2,
                 Minimum = 1,
                 Maximum = 150,
-                Value = 12.50m,
+                Value = 12.00m,
                 Font = new Font("Segoe UI", 9.5F),
                 BackColor = Color.FromArgb(32, 38, 52),
                 ForeColor = Color.White
@@ -126,30 +129,18 @@ namespace TicketBooking.Controls
 
             txtRating = new TextBox
             {
-                Location = new Point(345, top),
-                Width = 149,
-                Text = "8.5/10",
+                Location = new Point(285, top),
+                Width = 105,
                 Font = new Font("Segoe UI", 9.5F),
                 BackColor = Color.FromArgb(32, 38, 52),
                 ForeColor = Color.White,
                 BorderStyle = BorderStyle.FixedSingle
             };
 
-            Controls.Add(lblDuration);
-            Controls.Add(lblPrice);
-            Controls.Add(lblRating);
-            Controls.Add(numDuration);
-            Controls.Add(numPrice);
-            Controls.Add(txtRating);
-            top += 38;
-
-            // Age Rating
-            var lblAge = new Label { Text = "Age Rating", ForeColor = Color.FromArgb(210, 220, 235), Location = new Point(22, top), AutoSize = true };
-            top += 20;
             cbAgeRating = new ComboBox
             {
-                Location = new Point(24, top),
-                Width = 225,
+                Location = new Point(400, top),
+                Width = 94,
                 DropDownStyle = ComboBoxStyle.DropDownList,
                 Font = new Font("Segoe UI", 9.5F),
                 BackColor = Color.FromArgb(32, 38, 52),
@@ -157,72 +148,18 @@ namespace TicketBooking.Controls
             };
             cbAgeRating.Items.AddRange(new object[] { "G", "PG", "PG-13", "R", "NC-17" });
             cbAgeRating.SelectedIndex = 2; // PG-13
+
+            Controls.Add(lblDuration);
+            Controls.Add(lblPrice);
+            Controls.Add(lblRating);
             Controls.Add(lblAge);
+            Controls.Add(numDuration);
+            Controls.Add(numPrice);
+            Controls.Add(txtRating);
             Controls.Add(cbAgeRating);
             top += 38;
 
-            // Section: Screening / Showtime so users can book ticket
-            var pnlShowtimeBox = new Panel
-            {
-                Location = new Point(24, top),
-                Size = new Size(inputW, 115),
-                BackColor = Color.FromArgb(28, 34, 48),
-                Padding = new Padding(12)
-            };
-
-            var lblShowHeader = new Label
-            {
-                Text = "🕒 Initial Screening Showtime (Required so users can book tickets)",
-                Font = new Font("Segoe UI", 9.5F, FontStyle.Bold),
-                ForeColor = Color.FromArgb(250, 190, 80),
-                Location = new Point(10, 8),
-                AutoSize = true
-            };
-            pnlShowtimeBox.Controls.Add(lblShowHeader);
-
-            var lblSt = new Label { Text = "Screening Date & Time:", ForeColor = Color.FromArgb(200, 210, 225), Location = new Point(10, 34), AutoSize = true };
-            var lblH = new Label { Text = "Cinema Hall:", ForeColor = Color.FromArgb(200, 210, 225), Location = new Point(240, 34), AutoSize = true };
-            pnlShowtimeBox.Controls.Add(lblSt);
-            pnlShowtimeBox.Controls.Add(lblH);
-
-            dtpShowTime = new DateTimePicker
-            {
-                Location = new Point(12, 55),
-                Width = 215,
-                Format = DateTimePickerFormat.Custom,
-                CustomFormat = "yyyy-MM-dd hh:mm tt",
-                Value = DateTime.Today.AddHours(19), // 7:00 PM today
-                Font = new Font("Segoe UI", 9.5F)
-            };
-            pnlShowtimeBox.Controls.Add(dtpShowTime);
-
-            cbHall = new ComboBox
-            {
-                Location = new Point(240, 55),
-                Width = 205,
-                DropDownStyle = ComboBoxStyle.DropDownList,
-                Font = new Font("Segoe UI", 9.5F),
-                BackColor = Color.FromArgb(36, 44, 60),
-                ForeColor = Color.White
-            };
-            cbHall.Items.AddRange(new object[] { "Hall 1 (Main Cinema)", "Hall 2 (Standard)", "Hall 3 (Standard)", "IMAX Theater 4K", "VIP Lounge Screening" });
-            cbHall.SelectedIndex = 0;
-            pnlShowtimeBox.Controls.Add(cbHall);
-
-            var lblCapInfo = new Label
-            {
-                Text = "Capacity: 48 seats (Rows A to F, Seats 1 to 8). Instant online ticket booking enabled.",
-                Font = new Font("Segoe UI", 8F, FontStyle.Italic),
-                ForeColor = Color.FromArgb(140, 160, 185),
-                Location = new Point(12, 88),
-                AutoSize = true
-            };
-            pnlShowtimeBox.Controls.Add(lblCapInfo);
-
-            Controls.Add(pnlShowtimeBox);
-            top += 125;
-
-            // Description / Synopsis
+            // Description
             var lblDesc = new Label { Text = "Description / Synopsis", ForeColor = Color.FromArgb(210, 220, 235), Location = new Point(22, top), AutoSize = true };
             top += 20;
 
@@ -230,7 +167,7 @@ namespace TicketBooking.Controls
             {
                 Location = new Point(24, top),
                 Width = inputW,
-                Height = 70,
+                Height = 110,
                 Multiline = true,
                 ScrollBars = ScrollBars.Vertical,
                 Font = new Font("Segoe UI", 9F),
@@ -240,7 +177,7 @@ namespace TicketBooking.Controls
             };
             Controls.Add(lblDesc);
             Controls.Add(txtDescription);
-            top += 80;
+            top += 125;
 
             lblError = new Label
             {
@@ -255,9 +192,9 @@ namespace TicketBooking.Controls
 
             btnSave = new Button
             {
-                Text = "🎬 Add Movie & Open for Booking",
+                Text = "💾 Save Changes",
                 Location = new Point(24, top),
-                Width = 280,
+                Width = 270,
                 Height = 38,
                 BackColor = Color.FromArgb(0, 160, 140),
                 ForeColor = Color.White,
@@ -271,8 +208,8 @@ namespace TicketBooking.Controls
             btnCancel = new Button
             {
                 Text = "Cancel",
-                Location = new Point(320, top),
-                Width = 174,
+                Location = new Point(310, top),
+                Width = 184,
                 Height = 38,
                 BackColor = Color.FromArgb(50, 58, 74),
                 ForeColor = Color.White,
@@ -287,6 +224,22 @@ namespace TicketBooking.Controls
             Controls.Add(btnCancel);
         }
 
+        private void LoadMovieData()
+        {
+            txtTitle.Text = _movie.Title;
+            cbGenre.Text = _movie.Genre;
+            dtpReleaseDate.Value = _movie.ReleaseDate ?? DateTime.Today;
+            numDuration.Value = Math.Max(numDuration.Minimum, Math.Min(numDuration.Maximum, (decimal)_movie.Duration.TotalMinutes));
+            numPrice.Value = Math.Max(numPrice.Minimum, Math.Min(numPrice.Maximum, _movie.Price));
+            txtRating.Text = string.IsNullOrEmpty(_movie.Rating) ? "8.5/10" : _movie.Rating;
+
+            int ageIdx = cbAgeRating.FindStringExact(_movie.AgeRating);
+            if (ageIdx >= 0) cbAgeRating.SelectedIndex = ageIdx;
+            else cbAgeRating.Text = _movie.AgeRating;
+
+            txtDescription.Text = _movie.Description;
+        }
+
         private void BtnSave_Click(object sender, EventArgs e)
         {
             lblError.Text = string.Empty;
@@ -294,56 +247,37 @@ namespace TicketBooking.Controls
             string title = txtTitle.Text.Trim();
             if (string.IsNullOrEmpty(title))
             {
-                lblError.Text = "Please enter the movie title.";
+                lblError.Text = "Movie title is required.";
                 txtTitle.Focus();
                 return;
             }
 
-            DateTime cameOutDate = dtpReleaseDate.Value.Date;
-            DateTime showTime = dtpShowTime.Value;
-
-            if (showTime < DateTime.Now.AddMinutes(-10))
-            {
-                lblError.Text = "Screening showtime must be in the future.";
-                return;
-            }
-
-            string genre = cbGenre.Text.Trim();
-            int duration = (int)numDuration.Value;
-            decimal price = numPrice.Value;
-            string rating = string.IsNullOrWhiteSpace(txtRating.Text) ? "8.5/10" : txtRating.Text.Trim();
-            string ageRating = cbAgeRating.SelectedItem?.ToString() ?? "PG-13";
-            string hall = cbHall.SelectedItem?.ToString() ?? "Hall 1";
-            string desc = txtDescription.Text.Trim();
+            _movie.Title = title;
+            _movie.Genre = cbGenre.Text.Trim();
+            _movie.ReleaseDate = dtpReleaseDate.Value.Date;
+            _movie.Duration = TimeSpan.FromMinutes((int)numDuration.Value);
+            _movie.Price = numPrice.Value;
+            _movie.Rating = string.IsNullOrWhiteSpace(txtRating.Text) ? "8.5/10" : txtRating.Text.Trim();
+            _movie.AgeRating = cbAgeRating.SelectedItem?.ToString() ?? "PG-13";
+            _movie.Description = txtDescription.Text.Trim();
 
             try
             {
-                int movieId = MovieService.AddMovieWithShow(
-                    title,
-                    genre,
-                    duration,
-                    desc,
-                    price,
-                    showTime,
-                    hall,
-                    rating,
-                    ageRating,
-                    cameOutDate
-                );
-
-                MessageBox.Show(
-                    $"Movie '{title}' (Came Out: {cameOutDate:yyyy-MM-dd}) was added successfully!\n\nFirst screening scheduled at {showTime:yyyy-MM-dd hh:mm tt} in {hall}.\nCustomers can now book tickets.",
-                    "Movie Added & Available for Booking",
-                    MessageBoxButtons.OK,
-                    MessageBoxIcon.Information
-                );
-
-                DialogResult = DialogResult.OK;
-                Close();
+                bool ok = MovieService.UpdateMovie(_movie);
+                if (ok)
+                {
+                    MessageBox.Show($"Movie '{_movie.Title}' updated successfully!", "Movie Updated", MessageBoxButtons.OK, MessageBoxIcon.Information);
+                    DialogResult = DialogResult.OK;
+                    Close();
+                }
+                else
+                {
+                    lblError.Text = "Could not update movie. Please verify record exists.";
+                }
             }
             catch (Exception ex)
             {
-                lblError.Text = "Failed to add movie: " + ex.Message;
+                lblError.Text = "Error saving changes: " + ex.Message;
             }
         }
     }

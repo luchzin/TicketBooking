@@ -237,16 +237,17 @@ namespace TicketBooking.Controls
                 return;
             }
 
-            if (AuthService.ValidateUser(phone, pass, out User user))
+            var res = AuthService.Login(new LoginRequest { Phone = phone, Password = pass });
+            if (res.Success)
             {
-                ProgramState.SetUser(user);
+                ProgramState.SetUser(res.User);
                 DialogResult = DialogResult.OK;
                 Close();
             }
             else
             {
                 lblError.ForeColor = Color.FromArgb(255, 99, 99);
-                lblError.Text = "Invalid phone number or password.";
+                lblError.Text = res.ErrorMessage;
                 lblError.Visible = true;
             }
         }

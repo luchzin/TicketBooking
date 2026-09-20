@@ -82,6 +82,8 @@ namespace TicketBooking.Data
 CREATE TABLE IF NOT EXISTS Users (
     Id INTEGER PRIMARY KEY AUTOINCREMENT,
     Phone TEXT NOT NULL UNIQUE,
+    FullName TEXT,
+    Email TEXT,
     PasswordHash TEXT NOT NULL,
     IsAdmin INTEGER NOT NULL DEFAULT 0,
     CreatedAt TEXT NOT NULL
@@ -94,7 +96,10 @@ CREATE TABLE IF NOT EXISTS Movies (
     DurationMinutes INTEGER,
     Description TEXT,
     PosterPath TEXT,
-    Price REAL NOT NULL DEFAULT 12.0
+    Price REAL NOT NULL DEFAULT 12.0,
+    Rating TEXT DEFAULT '8.5/10',
+    AgeRating TEXT DEFAULT 'PG-13',
+    ReleaseDate TEXT
 );
 
 CREATE TABLE IF NOT EXISTS Shows (
@@ -116,14 +121,57 @@ CREATE TABLE IF NOT EXISTS Bookings (
     SeatCol INTEGER NOT NULL,
     Price REAL NOT NULL,
     BookingTime TEXT NOT NULL,
+    Status TEXT NOT NULL DEFAULT 'Confirmed',
+    ReferenceCode TEXT,
     FOREIGN KEY(UserId) REFERENCES Users(Id),
     FOREIGN KEY(ShowId) REFERENCES Shows(Id) ON DELETE CASCADE
 );
+
+CREATE INDEX IF NOT EXISTS idx_shows_movieid ON Shows(MovieId);
+CREATE INDEX IF NOT EXISTS idx_bookings_showid ON Bookings(ShowId);
+CREATE INDEX IF NOT EXISTS idx_bookings_userid ON Bookings(UserId);
 ";
                     cmd.ExecuteNonQuery();
                 }
 
+                // Safe non-destructive column migrations for existing databases
+                RunSafeMigrations(conn);
+
+                // Seed initial data if empty
                 SeedInitialData(conn);
+            }
+        }
+
+        private static void RunSafeMigrations(SqliteConnection conn)
+        {
+            var migrations = new[]
+            {
+                "ALTER TABLE Users ADD COLUMN FullName TEXT;",
+                "ALTER TABLE Users ADD COLUMN Email TEXT;",
+                "ALTER TABLE Movies ADD COLUMN Rating TEXT DEFAULT '8.5/10';",
+                "ALTER TABLE Movies ADD COLUMN AgeRating TEXT DEFAULT 'PG-13';",
+                "ALTER TABLE Movies ADD COLUMN ReleaseDate TEXT;",
+                "ALTER TABLE Bookings ADD COLUMN Status TEXT DEFAULT 'Confirmed';",
+                "ALTER TABLE Bookings ADD COLUMN ReferenceCode TEXT;",
+                "CREATE INDEX IF NOT EXISTS idx_shows_movieid ON Shows(MovieId);",
+                "CREATE INDEX IF NOT EXISTS idx_bookings_showid ON Bookings(ShowId);",
+                "CREATE INDEX IF NOT EXISTS idx_bookings_userid ON Bookings(UserId);"
+            };
+
+            foreach (var sql in migrations)
+            {
+                try
+                {
+                    using (var cmd = conn.CreateCommand())
+                    {
+                        cmd.CommandText = sql;
+                        cmd.ExecuteNonQuery();
+                    }
+                }
+                catch
+                {
+                    // Column already exists or table already migrated; safely ignore
+                }
             }
         }
 
@@ -147,8 +195,11 @@ CREATE TABLE IF NOT EXISTS Bookings (
                 using (var userCmd = conn.CreateCommand())
                 {
                     userCmd.CommandText = @"
-INSERT INTO Users (Phone, PasswordHash, IsAdmin, CreatedAt) VALUES ($p1, $h1, 1, $t);
-INSERT INTO Users (Phone, PasswordHash, IsAdmin, CreatedAt) VALUES ($p2, $h2, 0, $t);
+INSERT INTO Users (Phone, FullName, Email, PasswordHash, IsAdmin, CreatedAt)
+VALUES ($p1, 'Super Administrator', 'admin@cineticket.com', $h1, 1, $t);
+
+INSERT INTO Users (Phone, FullName, Email, PasswordHash, IsAdmin, CreatedAt)
+VALUES ($p2, 'Alice Walker', 'alice.walker@example.com', $h2, 0, $t);
 ";
                     userCmd.Parameters.AddWithValue("$p1", "085909135");
                     userCmd.Parameters.AddWithValue("$h1", adminHash);
@@ -184,6 +235,8 @@ INSERT INTO Users (Phone, PasswordHash, IsAdmin, CreatedAt) VALUES ($p2, $h2, 0,
                         Genre = "Sci-Fi / Action",
                         Duration = 125,
                         Price = 14.50,
+                        Rating = "8.9/10",
+                        AgeRating = "PG-13",
                         Desc = "A neon-lit chase through a futuristic cyberpunk metropolis where memories can be bought and sold on the black market."
                     },
                     new {
@@ -191,6 +244,8 @@ INSERT INTO Users (Phone, PasswordHash, IsAdmin, CreatedAt) VALUES ($p2, $h2, 0,
                         Genre = "Drama / Music",
                         Duration = 98,
                         Price = 11.00,
+                        Rating = "8.4/10",
+                        AgeRating = "PG",
                         Desc = "An aging master composer discovers his passion rekindled when a mysterious young street prodigy arrives on his doorstep."
                     },
                     new {
@@ -198,6 +253,8 @@ INSERT INTO Users (Phone, PasswordHash, IsAdmin, CreatedAt) VALUES ($p2, $h2, 0,
                         Genre = "Adventure / Family",
                         Duration = 105,
                         Price = 12.50,
+                        Rating = "8.1/10",
+                        AgeRating = "G",
                         Desc = "Two daring siblings construct a backyard airship and discover a wondrous lost floating kingdom above the clouds."
                     },
                     new {
@@ -205,6 +262,8 @@ INSERT INTO Users (Phone, PasswordHash, IsAdmin, CreatedAt) VALUES ($p2, $h2, 0,
                         Genre = "Romance / Comedy",
                         Duration = 90,
                         Price = 10.00,
+                        Rating = "7.8/10",
+                        AgeRating = "PG",
                         Desc = "A dedicated night-shift baker and an eccentric, sleep-deprived programmer collide over warm croissants and broken algorithms."
                     },
                     new {
@@ -212,6 +271,8 @@ INSERT INTO Users (Phone, PasswordHash, IsAdmin, CreatedAt) VALUES ($p2, $h2, 0,
                         Genre = "Sci-Fi / Space",
                         Duration = 140,
                         Price = 15.00,
+                        Rating = "9.1/10",
+                        AgeRating = "PG-13",
                         Desc = "A deep-space expedition encounters an enigmatic celestial artifact orbiting a dead star, changing humanity's destiny forever."
                     }
                 };
@@ -224,8 +285,8 @@ INSERT INTO Users (Phone, PasswordHash, IsAdmin, CreatedAt) VALUES ($p2, $h2, 0,
                     using (var insCmd = conn.CreateCommand())
                     {
                         insCmd.CommandText = @"
-INSERT INTO Movies (Title, Genre, DurationMinutes, Description, PosterPath, Price)
-VALUES ($t, $g, $d, $desc, '', $pr);
+INSERT INTO Movies (Title, Genre, DurationMinutes, Description, PosterPath, Price, Rating, AgeRating)
+VALUES ($t, $g, $d, $desc, '', $pr, $rat, $age);
 SELECT last_insert_rowid();
 ";
                         insCmd.Parameters.AddWithValue("$t", m.Title);
@@ -233,15 +294,17 @@ SELECT last_insert_rowid();
                         insCmd.Parameters.AddWithValue("$d", m.Duration);
                         insCmd.Parameters.AddWithValue("$desc", m.Desc);
                         insCmd.Parameters.AddWithValue("$pr", m.Price);
+                        insCmd.Parameters.AddWithValue("$rat", m.Rating);
+                        insCmd.Parameters.AddWithValue("$age", m.AgeRating);
                         movieId = Convert.ToInt64(insCmd.ExecuteScalar());
                     }
 
-                    // Create 3 shows for each movie: 2 today, 1 tomorrow
+                    // Create 3 shows for each movie
                     var showTimes = new[]
                     {
                         new { Time = today.AddHours(14).ToString("yyyy-MM-dd 14:00:00"), Hall = "Hall 1" },
                         new { Time = today.AddHours(18).AddMinutes(30).ToString("yyyy-MM-dd 18:30:00"), Hall = "Hall 1" },
-                        new { Time = today.AddDays(1).AddHours(20).ToString("yyyy-MM-dd 20:00:00"), Hall = "Hall 2" }
+                        new { Time = today.AddDays(1).AddHours(20).ToString("yyyy-MM-dd 20:00:00"), Hall = "Hall 2 (IMAX)" }
                     };
 
                     for (int sIdx = 0; sIdx < showTimes.Length; sIdx++)
@@ -261,16 +324,16 @@ SELECT last_insert_rowid();
                             showId = Convert.ToInt64(showCmd.ExecuteScalar());
                         }
 
-                        // Seed pre-booked seats for the first show of the first 2 movies
+                        // Seed sample pre-booked seats
                         if (sIdx == 0 && (movieId == 1 || movieId == 2))
                         {
                             using (var bCmd = conn.CreateCommand())
                             {
                                 bCmd.CommandText = @"
-INSERT INTO Bookings (UserId, ShowId, SeatCode, SeatRow, SeatCol, Price, BookingTime)
-VALUES ($uid, $sid, 'C4', 2, 3, $pr, $bt);
-INSERT INTO Bookings (UserId, ShowId, SeatCode, SeatRow, SeatCol, Price, BookingTime)
-VALUES ($uid, $sid, 'C5', 2, 4, $pr, $bt);
+INSERT INTO Bookings (UserId, ShowId, SeatCode, SeatRow, SeatCol, Price, BookingTime, Status, ReferenceCode)
+VALUES ($uid, $sid, 'C4', 2, 3, $pr, $bt, 'Confirmed', '#CB-DEMO-001');
+INSERT INTO Bookings (UserId, ShowId, SeatCode, SeatRow, SeatCol, Price, BookingTime, Status, ReferenceCode)
+VALUES ($uid, $sid, 'C5', 2, 4, $pr, $bt, 'Confirmed', '#CB-DEMO-002');
 ";
                                 bCmd.Parameters.AddWithValue("$uid", adminId);
                                 bCmd.Parameters.AddWithValue("$sid", showId);

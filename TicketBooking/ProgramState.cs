@@ -4,30 +4,22 @@ namespace TicketBooking
 {
     public static class ProgramState
     {
-        public static int CurrentUserId { get; set; }
-        public static string CurrentUserPhone { get; set; }
-        public static bool CurrentUserIsAdmin { get; set; }
-        public static bool IsLoggedIn => CurrentUserId > 0;
+        public static User CurrentUser { get; private set; }
+        public static int CurrentUserId => CurrentUser?.Id ?? 0;
+        public static string CurrentUserPhone => CurrentUser?.Phone;
+        public static string CurrentUserFullName => CurrentUser?.FullName;
+        public static string CurrentUserEmail => CurrentUser?.Email;
+        public static bool CurrentUserIsAdmin => CurrentUser?.IsAdmin ?? false;
+        public static bool IsLoggedIn => CurrentUser != null && CurrentUser.Id > 0;
 
         public static void SetUser(User user)
         {
-            if (user != null)
-            {
-                CurrentUserId = user.Id;
-                CurrentUserPhone = user.Phone;
-                CurrentUserIsAdmin = user.IsAdmin;
-            }
-            else
-            {
-                Logout();
-            }
+            CurrentUser = user;
         }
 
         public static void Logout()
         {
-            CurrentUserId = 0;
-            CurrentUserPhone = null;
-            CurrentUserIsAdmin = false;
+            CurrentUser = null;
         }
     }
 }

@@ -17,13 +17,24 @@ namespace TicketBooking
         private Movie _selectedMovie;
         private Show _selectedShow;
         private readonly List<MovieCard> _movieCards = new List<MovieCard>();
+        private readonly bool _isChildView;
+        private Button btnAdminPortal;
 
-        public Form1()
+        public Form1(bool isChildView = false)
         {
+            _isChildView = isChildView;
             InitializeComponent();
 
             // Ensure database is created and seeded
             Database.EnsureCreated();
+
+            // Enable double buffering for smooth, flicker-free rendering
+            this.SetDoubleBuffered(true);
+            flowMovies.SetDoubleBuffered(true);
+            pnlSeats.SetDoubleBuffered(true);
+
+            // Setup Admin Portal button
+            SetupAdminPortalButton();
 
             // Setup custom UI components like the legend
             SetupLegend();
@@ -37,13 +48,66 @@ namespace TicketBooking
             btnLogout.Click += BtnLogout_Click;
 
             // Authentication check
-            if (!PerformLogin())
+            if (!ProgramState.IsLoggedIn)
             {
-                Load += (s, e) => Close();
-                return;
+                if (!PerformLogin())
+                {
+                    Load += (s, e) => Close();
+                    return;
+                }
+            }
+            else
+            {
+                UpdateUserSessionUi();
             }
 
             InitData();
+        }
+
+        private void SetupAdminPortalButton()
+        {
+            btnAdminPortal = new Button
+            {
+                Text = _isChildView ? "⬅ Admin Portal" : "⚙️ Admin Portal",
+                Size = new Size(130, 32),
+                Location = new Point(btnAddMovie.Location.X - 140, btnAddMovie.Location.Y),
+                Anchor = AnchorStyles.Top | AnchorStyles.Right,
+                FlatStyle = FlatStyle.Flat,
+                BackColor = Color.FromArgb(0, 160, 140),
+                ForeColor = Color.White,
+                Font = new Font("Segoe UI", 8.5F, FontStyle.Bold),
+                Cursor = Cursors.Hand,
+                Visible = false
+            };
+            btnAdminPortal.FlatAppearance.BorderSize = 0;
+            btnAdminPortal.Click += BtnAdminPortal_Click;
+            topBarPanel.Controls.Add(btnAdminPortal);
+        }
+
+        private void BtnAdminPortal_Click(object sender, EventArgs e)
+        {
+            if (_isChildView)
+            {
+                Close();
+            }
+            else
+            {
+                Hide();
+                using (var portal = new AdminPortalForm())
+                {
+                    portal.ShowDialog(this);
+                }
+                Show();
+                if (!ProgramState.IsLoggedIn)
+                {
+                    Close();
+                }
+                else
+                {
+                    UpdateUserSessionUi();
+                    InitData();
+                }
+            }
         }
 
         private bool PerformLogin()
@@ -64,8 +128,15 @@ namespace TicketBooking
             if (ProgramState.IsLoggedIn)
             {
                 string roleText = ProgramState.CurrentUserIsAdmin ? " [ADMIN]" : "";
-                lblUserInfo.Text = $"👤 {ProgramState.CurrentUserPhone}{roleText}";
+                string displayName = string.IsNullOrWhiteSpace(ProgramState.CurrentUserFullName)
+                    ? ProgramState.CurrentUserPhone
+                    : ProgramState.CurrentUserFullName;
+                lblUserInfo.Text = $"👤 {displayName}{roleText}";
                 btnAddMovie.Visible = ProgramState.CurrentUserIsAdmin;
+                if (btnAdminPortal != null)
+                {
+                    btnAdminPortal.Visible = ProgramState.CurrentUserIsAdmin;
+                }
                 btnMyBookings.Visible = true;
                 btnLogout.Visible = true;
             }
@@ -73,6 +144,10 @@ namespace TicketBooking
             {
                 lblUserInfo.Text = "Not signed in";
                 btnAddMovie.Visible = false;
+                if (btnAdminPortal != null)
+                {
+                    btnAdminPortal.Visible = false;
+                }
                 btnMyBookings.Visible = false;
                 btnLogout.Visible = false;
             }
@@ -206,7 +281,8 @@ namespace TicketBooking
 
             lblTitle.Text = m.Title;
             lblPriceBadge.Text = $"🎟️ ${m.Price:F2} per ticket";
-            lblMeta.Text = $"{m.Genre} • {(int)m.Duration.TotalMinutes} min";
+            string rel = m.ReleaseDate.HasValue ? $" • Came Out: {m.ReleaseDate.Value:yyyy-MM-dd}" : "";
+            lblMeta.Text = $"{m.Genre} • {(int)m.Duration.TotalMinutes} min{rel} • Rating: {m.Rating} ({m.AgeRating})";
             lblDescription.Text = m.Description;
 
             cbShows.Items.Clear();
@@ -250,8 +326,6 @@ namespace TicketBooking
             if (idx >= 0 && idx < _selectedMovie.Shows.Count)
             {
                 _selectedShow = _selectedMovie.Shows[idx];
-                // Refresh booked seats from database for this show
-                RefreshShowBookings(_selectedShow);
                 RenderSeats();
             }
         }
@@ -259,12 +333,7 @@ namespace TicketBooking
         private void RefreshShowBookings(Show show)
         {
             if (show == null) return;
-            var bookedCodes = MovieService.GetBookedSeatCodesForShow(show.Id);
-            foreach (var seat in show.Seats)
-            {
-                seat.IsBooked = bookedCodes.Contains(seat.Label);
-                seat.IsSelected = false;
-            }
+            MovieService.PopulateSeatsForShow(show);
         }
 
         private void RenderSeats()
@@ -272,7 +341,17 @@ namespace TicketBooking
             pnlSeats.SuspendLayout();
             pnlSeats.Controls.Clear();
 
-            if (_selectedShow == null || _selectedShow.Seats.Count == 0)
+            if (_selectedShow == null)
+            {
+                pnlSeats.ResumeLayout();
+                UpdateSelectedCount();
+                return;
+            }
+
+            // Populate or refresh seats on-demand
+            MovieService.PopulateSeatsForShow(_selectedShow);
+
+            if (_selectedShow.Seats == null || _selectedShow.Seats.Count == 0)
             {
                 pnlSeats.ResumeLayout();
                 UpdateSelectedCount();
@@ -469,6 +548,12 @@ namespace TicketBooking
 
             ProgramState.Logout();
             UpdateUserSessionUi();
+
+            if (_isChildView)
+            {
+                Close();
+                return;
+            }
 
             // Re-prompt login
             if (!PerformLogin())
