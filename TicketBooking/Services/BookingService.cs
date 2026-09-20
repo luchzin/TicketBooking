@@ -136,7 +136,8 @@ VALUES ($uid, $sid, $code, $r, $c, $pr, $bt, 'Confirmed', $ref);
             {
                 cmd.CommandText = @"
 SELECT b.Id, b.UserId, COALESCE(u.FullName, u.Phone), u.Phone, b.ShowId, m.Title, s.HallName, s.ShowTime,
-       b.SeatCode, b.SeatRow, b.SeatCol, b.Price, b.BookingTime, b.Status, b.ReferenceCode
+       b.SeatCode, b.SeatRow, b.SeatCol, b.Price, b.BookingTime, b.Status, b.ReferenceCode,
+       COALESCE(m.PosterPath, ''), COALESCE(m.Genre, ''), m.DurationMinutes, COALESCE(m.Rating, ''), COALESCE(m.AgeRating, ''), m.ReleaseDate
 FROM Bookings b
 JOIN Shows s ON b.ShowId = s.Id
 JOIN Movies m ON s.MovieId = m.Id
@@ -155,6 +156,13 @@ ORDER BY b.BookingTime DESC;
                         DateTime bookingTime;
                         DateTime.TryParse(r.GetString(12), out bookingTime);
 
+                        DateTime? relDate = null;
+                        if (!r.IsDBNull(20))
+                        {
+                            DateTime parsed;
+                            if (DateTime.TryParse(r.GetString(20), out parsed)) relDate = parsed;
+                        }
+
                         list.Add(new Booking
                         {
                             Id = r.GetInt32(0),
@@ -171,7 +179,13 @@ ORDER BY b.BookingTime DESC;
                             Price = Convert.ToDecimal(r.GetDouble(11)),
                             BookingTime = bookingTime,
                             Status = r.IsDBNull(13) ? "Confirmed" : r.GetString(13),
-                            ReferenceCode = r.IsDBNull(14) ? "" : r.GetString(14)
+                            ReferenceCode = r.IsDBNull(14) ? "" : r.GetString(14),
+                            PosterPath = r.IsDBNull(15) ? "" : r.GetString(15),
+                            Genre = r.IsDBNull(16) ? "" : r.GetString(16),
+                            DurationMinutes = r.IsDBNull(17) ? 0 : r.GetInt32(17),
+                            Rating = r.IsDBNull(18) ? "" : r.GetString(18),
+                            AgeRating = r.IsDBNull(19) ? "" : r.GetString(19),
+                            ReleaseDate = relDate
                         });
                     }
                 }
@@ -188,7 +202,8 @@ ORDER BY b.BookingTime DESC;
             {
                 cmd.CommandText = @"
 SELECT b.Id, b.UserId, COALESCE(u.FullName, u.Phone), u.Phone, b.ShowId, m.Title, s.HallName, s.ShowTime,
-       b.SeatCode, b.SeatRow, b.SeatCol, b.Price, b.BookingTime, b.Status, b.ReferenceCode
+       b.SeatCode, b.SeatRow, b.SeatCol, b.Price, b.BookingTime, b.Status, b.ReferenceCode,
+       COALESCE(m.PosterPath, ''), COALESCE(m.Genre, ''), m.DurationMinutes, COALESCE(m.Rating, ''), COALESCE(m.AgeRating, ''), m.ReleaseDate
 FROM Bookings b
 JOIN Shows s ON b.ShowId = s.Id
 JOIN Movies m ON s.MovieId = m.Id
@@ -203,6 +218,13 @@ ORDER BY b.BookingTime DESC;
                         DateTime.TryParse(r.GetString(7), out showTime);
                         DateTime bookingTime;
                         DateTime.TryParse(r.GetString(12), out bookingTime);
+
+                        DateTime? relDate = null;
+                        if (!r.IsDBNull(20))
+                        {
+                            DateTime parsed;
+                            if (DateTime.TryParse(r.GetString(20), out parsed)) relDate = parsed;
+                        }
 
                         list.Add(new Booking
                         {
@@ -220,7 +242,13 @@ ORDER BY b.BookingTime DESC;
                             Price = Convert.ToDecimal(r.GetDouble(11)),
                             BookingTime = bookingTime,
                             Status = r.IsDBNull(13) ? "Confirmed" : r.GetString(13),
-                            ReferenceCode = r.IsDBNull(14) ? "" : r.GetString(14)
+                            ReferenceCode = r.IsDBNull(14) ? "" : r.GetString(14),
+                            PosterPath = r.IsDBNull(15) ? "" : r.GetString(15),
+                            Genre = r.IsDBNull(16) ? "" : r.GetString(16),
+                            DurationMinutes = r.IsDBNull(17) ? 0 : r.GetInt32(17),
+                            Rating = r.IsDBNull(18) ? "" : r.GetString(18),
+                            AgeRating = r.IsDBNull(19) ? "" : r.GetString(19),
+                            ReleaseDate = relDate
                         });
                     }
                 }

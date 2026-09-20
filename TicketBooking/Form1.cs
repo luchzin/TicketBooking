@@ -19,6 +19,7 @@ namespace TicketBooking
         private readonly List<MovieCard> _movieCards = new List<MovieCard>();
         private readonly bool _isChildView;
         private Button btnAdminPortal;
+        private Button btnProfile;
         private PictureBox picDetailPoster;
 
         public Form1(bool isChildView = false)
@@ -34,14 +35,22 @@ namespace TicketBooking
             flowMovies.SetDoubleBuffered(true);
             pnlSeats.SetDoubleBuffered(true);
 
-            // Setup Admin Portal button
+            // Setup Admin Portal & Profile buttons
             SetupAdminPortalButton();
+            SetupProfileButton();
 
             // Setup poster display in right panel
             SetupPosterDisplay();
 
             // Setup custom UI components like the legend
             SetupLegend();
+
+            // Setup interactive user info badge
+            lblUserInfo.Cursor = Cursors.Hand;
+            lblUserInfo.Click += (s, e) => OpenUserProfile();
+            var userTip = new ToolTip();
+            userTip.SetToolTip(lblUserInfo, "Click to view your profile and account details");
+            btnLogout.Text = "🚪 Sign Out";
 
             // Wire event handlers
             txtSearch.TextChanged += TxtSearch_TextChanged;
@@ -146,6 +155,116 @@ namespace TicketBooking
             return false;
         }
 
+        private void SetupProfileButton()
+        {
+            btnProfile = new Button
+            {
+                Text = "👤 Profile",
+                Size = new Size(95, 32),
+                Anchor = AnchorStyles.Top | AnchorStyles.Right,
+                FlatStyle = FlatStyle.Flat,
+                BackColor = Color.FromArgb(36, 48, 64),
+                ForeColor = Color.FromArgb(190, 215, 245),
+                Font = new Font("Segoe UI", 8.5F, FontStyle.Bold),
+                Cursor = Cursors.Hand
+            };
+            btnProfile.FlatAppearance.BorderSize = 0;
+            btnProfile.Click += (s, e) => OpenUserProfile();
+            topBarPanel.Controls.Add(btnProfile);
+
+            LayoutTopBarButtons();
+            topBarPanel.Resize += (s, e) => LayoutTopBarButtons();
+        }
+
+        private void LayoutTopBarButtons()
+        {
+            if (topBarPanel == null) return;
+            int right = topBarPanel.ClientSize.Width - 14;
+
+            if (btnLogout != null)
+            {
+                btnLogout.Width = 95;
+                btnLogout.Location = new Point(right - btnLogout.Width, 12);
+                right = btnLogout.Location.X - 8;
+            }
+
+            if (btnProfile != null)
+            {
+                btnProfile.Location = new Point(right - btnProfile.Width, 12);
+                if (btnProfile.Visible)
+                {
+                    right = btnProfile.Location.X - 8;
+                }
+            }
+
+            if (btnMyBookings != null)
+            {
+                btnMyBookings.Width = 125;
+                btnMyBookings.Location = new Point(right - btnMyBookings.Width, 12);
+                if (btnMyBookings.Visible)
+                {
+                    right = btnMyBookings.Location.X - 8;
+                }
+            }
+
+            if (btnAddMovie != null)
+            {
+                btnAddMovie.Location = new Point(right - btnAddMovie.Width, 12);
+                if (btnAddMovie.Visible)
+                {
+                    right = btnAddMovie.Location.X - 8;
+                }
+            }
+
+            if (btnAdminPortal != null)
+            {
+                btnAdminPortal.Location = new Point(right - btnAdminPortal.Width, 12);
+            }
+        }
+
+        private void OpenUserProfile()
+        {
+            if (!ProgramState.IsLoggedIn)
+            {
+                PerformLogin();
+                return;
+            }
+
+            using (var profileForm = new UserProfileForm())
+            {
+                var res = profileForm.ShowDialog(this);
+                if (profileForm.RequestedSignOut || res == DialogResult.Abort)
+                {
+                    TriggerSignOut();
+                }
+                else
+                {
+                    UpdateUserSessionUi();
+                }
+            }
+        }
+
+        private void TriggerSignOut()
+        {
+            ProgramState.Logout();
+            UpdateUserSessionUi();
+
+            if (_isChildView)
+            {
+                Close();
+                return;
+            }
+
+            if (!PerformLogin())
+            {
+                Close();
+            }
+            else
+            {
+                InitData();
+            }
+        }
+
         private void UpdateUserSessionUi()
         {
             if (ProgramState.IsLoggedIn)
@@ -160,6 +279,10 @@ namespace TicketBooking
                 {
                     btnAdminPortal.Visible = ProgramState.CurrentUserIsAdmin;
                 }
+                if (btnProfile != null)
+                {
+                    btnProfile.Visible = true;
+                }
                 btnMyBookings.Visible = true;
                 btnLogout.Visible = true;
             }
@@ -171,9 +294,15 @@ namespace TicketBooking
                 {
                     btnAdminPortal.Visible = false;
                 }
+                if (btnProfile != null)
+                {
+                    btnProfile.Visible = false;
+                }
                 btnMyBookings.Visible = false;
                 btnLogout.Visible = false;
             }
+
+            LayoutTopBarButtons();
         }
 
         private void SetupLegend()
@@ -531,10 +660,22 @@ namespace TicketBooking
                     s.IsSelected = false;
                 }
 
-                MessageBox.Show($"🎉 Booking confirmed!\n\nYou have successfully booked {selectedSeats.Count} ticket(s) for '{_selectedMovie.Title}'.\nSeats: {seatCodes}\nTotal: ${totalAmount:F2}",
-                                "Booking Success", MessageBoxButtons.OK, MessageBoxIcon.Information);
-
                 RenderSeats();
+
+                var askView = MessageBox.Show(
+                    $"🎉 Booking confirmed!\n\n" +
+                    $"You have successfully booked {selectedSeats.Count} ticket(s) for '{_selectedMovie.Title}'.\n" +
+                    $"Seats: {seatCodes}\n" +
+                    $"Total: ${totalAmount:F2}\n\n" +
+                    "Would you like to open 'My Bookings' now to view or print your digital e-tickets?",
+                    "Booking Confirmed",
+                    MessageBoxButtons.YesNo,
+                    MessageBoxIcon.Information);
+
+                if (askView == DialogResult.Yes)
+                {
+                    BtnMyBookings_Click(btnMyBookings, EventArgs.Empty);
+                }
             }
             else
             {
@@ -586,27 +727,14 @@ namespace TicketBooking
 
         private void BtnLogout_Click(object sender, EventArgs e)
         {
-            var res = MessageBox.Show("Are you sure you want to sign out?", "Sign Out", MessageBoxButtons.YesNo, MessageBoxIcon.Question);
+            var res = MessageBox.Show(
+                "Are you sure you want to sign out?\n\nYou will be returned to the sign-in screen to log into another account.",
+                "Confirm Sign Out",
+                MessageBoxButtons.YesNo,
+                MessageBoxIcon.Question);
+
             if (res != DialogResult.Yes) return;
-
-            ProgramState.Logout();
-            UpdateUserSessionUi();
-
-            if (_isChildView)
-            {
-                Close();
-                return;
-            }
-
-            // Re-prompt login
-            if (!PerformLogin())
-            {
-                Close();
-            }
-            else
-            {
-                InitData();
-            }
+            TriggerSignOut();
         }
     }
 }

@@ -203,6 +203,37 @@ SELECT last_insert_rowid();
             }
         }
 
+        public static AuthResult UpdateProfile(int userId, string fullName, string email)
+        {
+            fullName = fullName?.Trim() ?? "";
+            email = email?.Trim() ?? "";
+
+            if (!string.IsNullOrEmpty(email) && !Regex.IsMatch(email, @"^[^@\s]+@[^@\s]+\.[^@\s]+$"))
+            {
+                return AuthResult.Fail("Please enter a valid email address (e.g., name@example.com).");
+            }
+
+            using (var conn = Database.GetConnection())
+            using (var cmd = conn.CreateCommand())
+            {
+                cmd.CommandText = "UPDATE Users SET FullName = $fn, Email = $em WHERE Id = $id";
+                cmd.Parameters.AddWithValue("$fn", fullName);
+                cmd.Parameters.AddWithValue("$em", email);
+                cmd.Parameters.AddWithValue("$id", userId);
+                int rows = cmd.ExecuteNonQuery();
+                if (rows > 0)
+                {
+                    if (ProgramState.CurrentUser != null && ProgramState.CurrentUser.Id == userId)
+                    {
+                        ProgramState.CurrentUser.FullName = fullName;
+                        ProgramState.CurrentUser.Email = email;
+                    }
+                    return AuthResult.Ok(ProgramState.CurrentUser);
+                }
+                return AuthResult.Fail("User account not found.");
+            }
+        }
+
         // Backward compatibility overloads
         public static bool ValidateUser(string phone, string password, out User user)
         {

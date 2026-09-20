@@ -20,8 +20,32 @@ namespace TicketBooking.Models
         public string Status { get; set; } = "Confirmed"; // "Confirmed" or "Cancelled"
         public string ReferenceCode { get; set; } = string.Empty;
 
+        // Enhanced movie details for booking inspection
+        public string PosterPath { get; set; } = string.Empty;
+        public string Genre { get; set; } = string.Empty;
+        public int DurationMinutes { get; set; }
+        public string Rating { get; set; } = string.Empty;
+        public string AgeRating { get; set; } = string.Empty;
+        public DateTime? ReleaseDate { get; set; }
+
         public bool IsActive => string.Equals(Status, "Confirmed", StringComparison.OrdinalIgnoreCase);
         public bool IsCancelled => string.Equals(Status, "Cancelled", StringComparison.OrdinalIgnoreCase);
+        public bool IsPast => ShowTime < DateTime.Now;
+
+        public string ShowCountdown
+        {
+            get
+            {
+                if (IsCancelled) return "Cancelled";
+                var diff = ShowTime - DateTime.Now;
+                if (diff.TotalMinutes < 0) return "Screening Finished";
+                if (diff.TotalDays >= 2) return $"In {(int)diff.TotalDays} days";
+                if (diff.TotalDays >= 1) return "Tomorrow";
+                if (diff.TotalHours >= 2) return $"Today (in {(int)diff.TotalHours} hrs)";
+                if (diff.TotalMinutes >= 1) return $"Starts in {(int)diff.TotalMinutes} min!";
+                return "Starting now!";
+            }
+        }
 
         public override string ToString() => $"{MovieTitle} - Seat {SeatCode} ({Status})";
     }
