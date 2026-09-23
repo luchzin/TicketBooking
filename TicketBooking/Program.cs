@@ -39,17 +39,11 @@ namespace TicketBooking
                     }
                 }
 
-                // Role-based main form routing:
-                // Admins enter the Admin Cinema Management Portal
-                // Customers enter the Cinema Booking & Movie Catalog View
-                if (ProgramState.CurrentUserIsAdmin)
-                {
-                    Application.Run(new AdminPortalForm());
-                }
-                else
-                {
-                    Application.Run(new Form1());
-                }
+                // Main Application Window:
+                // Both Admins and Customers enter the main cinema interface (Form1).
+                // Admins have full management capabilities enabled right on the interface,
+                // plus the ⚙️ Admin Portal button to launch the full management console.
+                Application.Run(new Form1());
 
                 // If user closed the form without logging out (e.g. window [X] clicked), terminate app
                 if (ProgramState.IsLoggedIn)

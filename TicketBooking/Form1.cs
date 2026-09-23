@@ -20,6 +20,9 @@ namespace TicketBooking
         private readonly bool _isChildView;
         private Button btnAdminPortal;
         private Button btnProfile;
+        private Button btnEditMovieDetail;
+        private Button btnDeleteMovieDetail;
+        private Button btnAddShowDetail;
         private PictureBox picDetailPoster;
 
         public Form1(bool isChildView = false)
@@ -38,6 +41,17 @@ namespace TicketBooking
             // Setup Admin Portal & Profile buttons
             SetupAdminPortalButton();
             SetupProfileButton();
+
+            // Clear anchors on dynamic top-bar controls so WinForms doesn't add auto-shift offsets
+            lblUserInfo.Anchor = AnchorStyles.None;
+            btnLogout.Anchor = AnchorStyles.None;
+            btnProfile.Anchor = AnchorStyles.None;
+            btnMyBookings.Anchor = AnchorStyles.None;
+            btnAddMovie.Anchor = AnchorStyles.None;
+            btnAdminPortal.Anchor = AnchorStyles.None;
+
+            // Setup Admin Movie Controls on right panel
+            SetupAdminMovieControls();
 
             // Setup poster display in right panel
             SetupPosterDisplay();
@@ -82,9 +96,8 @@ namespace TicketBooking
             btnAdminPortal = new Button
             {
                 Text = _isChildView ? "⬅ Admin Portal" : "⚙️ Admin Portal",
-                Size = new Size(130, 32),
-                Location = new Point(btnAddMovie.Location.X - 140, btnAddMovie.Location.Y),
-                Anchor = AnchorStyles.Top | AnchorStyles.Right,
+                Size = new Size(135, 32),
+                Anchor = AnchorStyles.None,
                 FlatStyle = FlatStyle.Flat,
                 BackColor = Color.FromArgb(0, 160, 140),
                 ForeColor = Color.White,
@@ -139,7 +152,121 @@ namespace TicketBooking
             lblPriceBadge.Location = new Point(134, 46);
             lblMeta.Location = new Point(134, 70);
             lblDescription.Location = new Point(134, 94);
-            lblDescription.MaximumSize = new Size(540, 50);
+            lblDescription.MaximumSize = new Size(400, 50);
+        }
+
+        private void SetupAdminMovieControls()
+        {
+            btnEditMovieDetail = new Button
+            {
+                Text = "✏️ Edit Movie",
+                Size = new Size(105, 28),
+                Location = new Point(540, 14),
+                Anchor = AnchorStyles.Top | AnchorStyles.Right,
+                BackColor = Color.FromArgb(40, 65, 95),
+                ForeColor = Color.White,
+                FlatStyle = FlatStyle.Flat,
+                Font = new Font("Segoe UI", 8.5F, FontStyle.Bold),
+                Cursor = Cursors.Hand,
+                Visible = false
+            };
+            btnEditMovieDetail.FlatAppearance.BorderSize = 0;
+            btnEditMovieDetail.Click += BtnEditMovieDetail_Click;
+            rightPanel.Controls.Add(btnEditMovieDetail);
+
+            btnDeleteMovieDetail = new Button
+            {
+                Text = "🗑️ Delete Movie",
+                Size = new Size(115, 28),
+                Location = new Point(540, 48),
+                Anchor = AnchorStyles.Top | AnchorStyles.Right,
+                BackColor = Color.FromArgb(100, 35, 40),
+                ForeColor = Color.FromArgb(255, 200, 200),
+                FlatStyle = FlatStyle.Flat,
+                Font = new Font("Segoe UI", 8.5F, FontStyle.Bold),
+                Cursor = Cursors.Hand,
+                Visible = false
+            };
+            btnDeleteMovieDetail.FlatAppearance.BorderSize = 0;
+            btnDeleteMovieDetail.Click += BtnDeleteMovieDetail_Click;
+            rightPanel.Controls.Add(btnDeleteMovieDetail);
+
+            btnAddShowDetail = new Button
+            {
+                Text = "➕ Add Showtime",
+                Size = new Size(135, 29),
+                Location = new Point(355, 164),
+                BackColor = Color.FromArgb(90, 60, 150),
+                ForeColor = Color.White,
+                FlatStyle = FlatStyle.Flat,
+                Font = new Font("Segoe UI", 8.5F, FontStyle.Bold),
+                Cursor = Cursors.Hand,
+                Visible = false
+            };
+            btnAddShowDetail.FlatAppearance.BorderSize = 0;
+            btnAddShowDetail.Click += BtnAddShowDetail_Click;
+            rightPanel.Controls.Add(btnAddShowDetail);
+        }
+
+        private void BtnEditMovieDetail_Click(object sender, EventArgs e)
+        {
+            if (_selectedMovie == null) return;
+            using (var edit = new EditMovieForm(_selectedMovie))
+            {
+                if (edit.ShowDialog(this) == DialogResult.OK)
+                {
+                    int id = _selectedMovie.Id;
+                    _allMovies = MovieService.GetMoviesWithShows();
+                    TxtSearch_TextChanged(txtSearch, EventArgs.Empty);
+                    var updated = _allMovies.FirstOrDefault(m => m.Id == id);
+                    if (updated != null) SelectMovie(updated);
+                }
+            }
+        }
+
+        private void BtnDeleteMovieDetail_Click(object sender, EventArgs e)
+        {
+            if (_selectedMovie == null) return;
+            var confirm = MessageBox.Show(
+                $"Are you sure you want to delete '{_selectedMovie.Title}'?\n\nThis will also remove all scheduled showtimes and bookings for this movie.",
+                "Confirm Movie Deletion",
+                MessageBoxButtons.YesNo,
+                MessageBoxIcon.Warning);
+
+            if (confirm != DialogResult.Yes) return;
+
+            try
+            {
+                bool deleted = MovieService.DeleteMovie(_selectedMovie.Id);
+                if (deleted)
+                {
+                    MessageBox.Show($"Movie '{_selectedMovie.Title}' deleted successfully.", "Deleted", MessageBoxButtons.OK, MessageBoxIcon.Information);
+                    _allMovies = MovieService.GetMoviesWithShows();
+                    TxtSearch_TextChanged(txtSearch, EventArgs.Empty);
+                    if (_filteredMovies.Count > 0) SelectMovie(_filteredMovies[0]);
+                    else ClearMovieDetails();
+                }
+            }
+            catch (Exception ex)
+            {
+                MessageBox.Show("Failed to delete movie: " + ex.Message, "Error", MessageBoxButtons.OK, MessageBoxIcon.Error);
+            }
+        }
+
+        private void BtnAddShowDetail_Click(object sender, EventArgs e)
+        {
+            int preselectedId = _selectedMovie?.Id ?? 0;
+            using (var addShow = new AddShowForm(_allMovies, preselectedId))
+            {
+                if (addShow.ShowDialog(this) == DialogResult.OK)
+                {
+                    int curId = _selectedMovie?.Id ?? 0;
+                    _allMovies = MovieService.GetMoviesWithShows();
+                    TxtSearch_TextChanged(txtSearch, EventArgs.Empty);
+                    var refreshed = _allMovies.FirstOrDefault(m => m.Id == curId);
+                    if (refreshed != null) SelectMovie(refreshed);
+                }
+            }
         }
 
         private bool PerformLogin()
@@ -160,65 +287,86 @@ namespace TicketBooking
             btnProfile = new Button
             {
                 Text = "👤 Profile",
-                Size = new Size(95, 32),
-                Anchor = AnchorStyles.Top | AnchorStyles.Right,
+                Size = new Size(92, 32),
+                Anchor = AnchorStyles.None,
                 FlatStyle = FlatStyle.Flat,
                 BackColor = Color.FromArgb(36, 48, 64),
                 ForeColor = Color.FromArgb(190, 215, 245),
                 Font = new Font("Segoe UI", 8.5F, FontStyle.Bold),
-                Cursor = Cursors.Hand
+                Cursor = Cursors.Hand,
+                Visible = false
             };
             btnProfile.FlatAppearance.BorderSize = 0;
             btnProfile.Click += (s, e) => OpenUserProfile();
             topBarPanel.Controls.Add(btnProfile);
 
-            LayoutTopBarButtons();
             topBarPanel.Resize += (s, e) => LayoutTopBarButtons();
         }
 
         private void LayoutTopBarButtons()
         {
             if (topBarPanel == null) return;
-            int right = topBarPanel.ClientSize.Width - 14;
+
+            // 1. Position User Info badge on the left side, right after Brand label
+            if (lblUserInfo != null && lblBrand != null)
+            {
+                lblUserInfo.Location = new Point(lblBrand.Right + 16, 17);
+                lblUserInfo.BringToFront();
+            }
+
+            if (!ProgramState.IsLoggedIn) return;
+
+            // 2. Position action buttons from right to left
+            int right = topBarPanel.ClientSize.Width - 16;
 
             if (btnLogout != null)
             {
-                btnLogout.Width = 95;
+                btnLogout.Width = 92;
                 btnLogout.Location = new Point(right - btnLogout.Width, 12);
+                btnLogout.BringToFront();
                 right = btnLogout.Location.X - 8;
             }
 
             if (btnProfile != null)
             {
+                btnProfile.Width = 92;
                 btnProfile.Location = new Point(right - btnProfile.Width, 12);
-                if (btnProfile.Visible)
-                {
-                    right = btnProfile.Location.X - 8;
-                }
+                btnProfile.BringToFront();
+                right = btnProfile.Location.X - 8;
             }
 
             if (btnMyBookings != null)
             {
                 btnMyBookings.Width = 125;
                 btnMyBookings.Location = new Point(right - btnMyBookings.Width, 12);
-                if (btnMyBookings.Visible)
-                {
-                    right = btnMyBookings.Location.X - 8;
-                }
+                btnMyBookings.BringToFront();
+                right = btnMyBookings.Location.X - 8;
             }
+
+            bool isAdmin = ProgramState.CurrentUserIsAdmin;
 
             if (btnAddMovie != null)
             {
-                btnAddMovie.Location = new Point(right - btnAddMovie.Width, 12);
-                if (btnAddMovie.Visible)
+                btnAddMovie.Visible = isAdmin;
+                if (isAdmin)
                 {
+                    btnAddMovie.Width = 115;
+                    btnAddMovie.Location = new Point(right - btnAddMovie.Width, 12);
+                    btnAddMovie.BringToFront();
                     right = btnAddMovie.Location.X - 8;
                 }
             }
 
             if (btnAdminPortal != null)
             {
-                btnAdminPortal.Location = new Point(right - btnAdminPortal.Width, 12);
+                btnAdminPortal.Visible = isAdmin;
+                if (isAdmin)
+                {
+                    btnAdminPortal.Width = 135;
+                    btnAdminPortal.Location = new Point(right - btnAdminPortal.Width, 12);
+                    btnAdminPortal.BringToFront();
+                    right = btnAdminPortal.Location.X - 8;
+                }
             }
         }
 
@@ -269,35 +417,44 @@ namespace TicketBooking
         {
             if (ProgramState.IsLoggedIn)
             {
-                string roleText = ProgramState.CurrentUserIsAdmin ? " [ADMIN]" : "";
+                bool isAdmin = ProgramState.CurrentUserIsAdmin;
                 string displayName = string.IsNullOrWhiteSpace(ProgramState.CurrentUserFullName)
                     ? ProgramState.CurrentUserPhone
                     : ProgramState.CurrentUserFullName;
-                lblUserInfo.Text = $"👤 {displayName}{roleText}";
-                btnAddMovie.Visible = ProgramState.CurrentUserIsAdmin;
-                if (btnAdminPortal != null)
+
+                if (isAdmin)
                 {
-                    btnAdminPortal.Visible = ProgramState.CurrentUserIsAdmin;
+                    lblUserInfo.Text = $"👑 {displayName} [ADMIN]";
+                    lblUserInfo.ForeColor = Color.FromArgb(255, 215, 80);
+                    lblUserInfo.Font = new Font("Segoe UI", 9F, FontStyle.Bold);
                 }
-                if (btnProfile != null)
+                else
                 {
-                    btnProfile.Visible = true;
+                    lblUserInfo.Text = $"👤 {displayName}";
+                    lblUserInfo.ForeColor = Color.FromArgb(180, 210, 245);
+                    lblUserInfo.Font = new Font("Segoe UI", 9F, FontStyle.Regular);
                 }
+
+                lblUserInfo.Visible = true;
+                btnAddMovie.Visible = isAdmin;
+                if (btnAdminPortal != null) btnAdminPortal.Visible = isAdmin;
+                if (btnProfile != null) btnProfile.Visible = true;
+                if (btnEditMovieDetail != null) btnEditMovieDetail.Visible = isAdmin;
+                if (btnDeleteMovieDetail != null) btnDeleteMovieDetail.Visible = isAdmin;
+                if (btnAddShowDetail != null) btnAddShowDetail.Visible = isAdmin;
                 btnMyBookings.Visible = true;
                 btnLogout.Visible = true;
             }
             else
             {
                 lblUserInfo.Text = "Not signed in";
+                lblUserInfo.Visible = false;
                 btnAddMovie.Visible = false;
-                if (btnAdminPortal != null)
-                {
-                    btnAdminPortal.Visible = false;
-                }
-                if (btnProfile != null)
-                {
-                    btnProfile.Visible = false;
-                }
+                if (btnAdminPortal != null) btnAdminPortal.Visible = false;
+                if (btnProfile != null) btnProfile.Visible = false;
+                if (btnEditMovieDetail != null) btnEditMovieDetail.Visible = false;
+                if (btnDeleteMovieDetail != null) btnDeleteMovieDetail.Visible = false;
+                if (btnAddShowDetail != null) btnAddShowDetail.Visible = false;
                 btnMyBookings.Visible = false;
                 btnLogout.Visible = false;
             }

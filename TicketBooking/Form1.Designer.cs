@@ -81,7 +81,7 @@ namespace TicketBooking
             this.btnLogout.Text = "Sign Out";
             this.btnLogout.Size = new System.Drawing.Size(84, 32);
             this.btnLogout.Location = new System.Drawing.Point(970, 12);
-            this.btnLogout.Anchor = System.Windows.Forms.AnchorStyles.Top | System.Windows.Forms.AnchorStyles.Right;
+            this.btnLogout.Anchor = System.Windows.Forms.AnchorStyles.None;
             this.btnLogout.FlatStyle = System.Windows.Forms.FlatStyle.Flat;
             this.btnLogout.BackColor = System.Drawing.Color.FromArgb(44, 52, 66);
             this.btnLogout.ForeColor = System.Drawing.Color.FromArgb(220, 225, 235);
@@ -93,7 +93,7 @@ namespace TicketBooking
             this.btnMyBookings.Text = "🎟️ My Bookings";
             this.btnMyBookings.Size = new System.Drawing.Size(115, 32);
             this.btnMyBookings.Location = new System.Drawing.Point(845, 12);
-            this.btnMyBookings.Anchor = System.Windows.Forms.AnchorStyles.Top | System.Windows.Forms.AnchorStyles.Right;
+            this.btnMyBookings.Anchor = System.Windows.Forms.AnchorStyles.None;
             this.btnMyBookings.FlatStyle = System.Windows.Forms.FlatStyle.Flat;
             this.btnMyBookings.BackColor = System.Drawing.Color.FromArgb(36, 48, 64);
             this.btnMyBookings.ForeColor = System.Drawing.Color.FromArgb(140, 200, 255);
@@ -105,7 +105,7 @@ namespace TicketBooking
             this.btnAddMovie.Text = "+ Add Movie";
             this.btnAddMovie.Size = new System.Drawing.Size(105, 32);
             this.btnAddMovie.Location = new System.Drawing.Point(730, 12);
-            this.btnAddMovie.Anchor = System.Windows.Forms.AnchorStyles.Top | System.Windows.Forms.AnchorStyles.Right;
+            this.btnAddMovie.Anchor = System.Windows.Forms.AnchorStyles.None;
             this.btnAddMovie.FlatStyle = System.Windows.Forms.FlatStyle.Flat;
             this.btnAddMovie.BackColor = System.Drawing.Color.FromArgb(25, 75, 60);
             this.btnAddMovie.ForeColor = System.Drawing.Color.FromArgb(100, 230, 190);
@@ -117,8 +117,8 @@ namespace TicketBooking
             this.lblUserInfo = new System.Windows.Forms.Label();
             this.lblUserInfo.Font = new System.Drawing.Font("Segoe UI", 9F, System.Drawing.FontStyle.Regular);
             this.lblUserInfo.ForeColor = System.Drawing.Color.FromArgb(180, 190, 205);
-            this.lblUserInfo.Location = new System.Drawing.Point(450, 18);
-            this.lblUserInfo.Anchor = System.Windows.Forms.AnchorStyles.Top | System.Windows.Forms.AnchorStyles.Right;
+            this.lblUserInfo.Location = new System.Drawing.Point(142, 17);
+            this.lblUserInfo.Anchor = System.Windows.Forms.AnchorStyles.None;
             this.lblUserInfo.AutoSize = true;
 
             this.topBarPanel.Controls.Add(this.lblBrand);
