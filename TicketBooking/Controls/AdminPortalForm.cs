@@ -10,14 +10,17 @@ namespace TicketBooking.Controls
 {
     public class AdminPortalForm : Form
     {
-        // Top Toolbar Buttons
+        // Header & Toolbar Controls
+        private Panel pnlTop;
+        private Label lblTitle;
+        private Label lblAdminInfo;
+        private Button btnProfile;
+        private Button btnSignOut;
         private Button btnAddMovie;
         private Button btnAddShow;
         private Button btnEditMovie;
         private Button btnDeleteMovie;
-        private Button btnCustomerView;
         private Button btnRefresh;
-        private Button btnSignOut;
 
         // KPI Ribbon Labels
         private Label lblKpiRevenue;
@@ -77,39 +80,52 @@ namespace TicketBooking.Controls
             Font = new Font("Segoe UI", 9F, FontStyle.Regular);
 
             // ================= 1. TOP HEADER & TOOLBAR =================
-            var pnlTop = new Panel
+            pnlTop = new Panel
             {
                 Dock = DockStyle.Top,
-                Height = 84,
+                Height = 88,
                 BackColor = Color.FromArgb(18, 22, 30),
                 Padding = new Padding(14, 8, 14, 6)
             };
 
             // Title & User badge
-            var lblTitle = new Label
+            lblTitle = new Label
             {
                 Text = "🎬 CINETICKET CINEMA MANAGER",
                 Font = new Font("Segoe UI", 12.5F, FontStyle.Bold),
                 ForeColor = Color.FromArgb(0, 190, 160),
-                Location = new Point(14, 8),
+                Location = new Point(14, 10),
                 AutoSize = true
             };
 
-            string adminName = ProgramState.CurrentUserFullName ?? ProgramState.CurrentUserPhone;
-            var lblAdminInfo = new Label
+            lblAdminInfo = new Label
             {
-                Text = $"👤 Administrator: {adminName} ({ProgramState.CurrentUserPhone})",
-                Font = new Font("Segoe UI", 8.5F),
-                ForeColor = Color.FromArgb(160, 180, 205),
-                Location = new Point(16, 32),
+                Font = new Font("Segoe UI", 9F, FontStyle.Bold),
+                ForeColor = Color.FromArgb(160, 195, 235),
+                Cursor = Cursors.Hand,
                 AutoSize = true
             };
+            UpdateAdminHeader();
+            lblAdminInfo.Click += (s, e) => OpenAdminProfile();
+            var adminTip = new ToolTip();
+            adminTip.SetToolTip(lblAdminInfo, "Click to view and edit your administrator profile & account settings");
+
+            // Header Top-Right Action Buttons
+            btnProfile = CreateToolbarButton("👤 Profile", Color.FromArgb(36, 48, 68), Color.FromArgb(200, 225, 255), 92, 10, 30);
+            btnProfile.Font = new Font("Segoe UI", 8.5F, FontStyle.Bold);
+            btnProfile.Click += (s, e) => OpenAdminProfile();
+
+            btnSignOut = CreateToolbarButton("🚪 Sign Out", Color.FromArgb(85, 35, 42), Color.FromArgb(255, 185, 185), 92, 10, 30);
+            btnSignOut.Font = new Font("Segoe UI", 8.5F, FontStyle.Bold);
+            btnSignOut.Click += BtnSignOut_Click;
 
             pnlTop.Controls.Add(lblTitle);
             pnlTop.Controls.Add(lblAdminInfo);
+            pnlTop.Controls.Add(btnProfile);
+            pnlTop.Controls.Add(btnSignOut);
 
-            // Action Toolbar Flow
-            int btnTop = 46;
+            // Bottom Tier: Management Toolbar Flow
+            int btnTop = 48;
             int btnH = 30;
 
             btnAddMovie = CreateToolbarButton("➕ Add Movie & Showtime", Color.FromArgb(0, 140, 120), Color.White, 175, btnTop, btnH);
@@ -125,24 +141,21 @@ namespace TicketBooking.Controls
             btnDeleteMovie = CreateToolbarButton("🗑️ Delete Movie", Color.FromArgb(100, 35, 40), Color.FromArgb(255, 200, 200), 115, btnTop, btnH);
             btnDeleteMovie.Click += BtnDeleteMovie_Click;
 
-            btnCustomerView = CreateToolbarButton("🎬 Open Cinema View", Color.FromArgb(30, 95, 80), Color.White, 155, btnTop, btnH);
-            btnCustomerView.Click += BtnCustomerView_Click;
-
             btnRefresh = CreateToolbarButton("🔄 Refresh", Color.FromArgb(45, 52, 68), Color.White, 85, btnTop, btnH);
             btnRefresh.Click += (s, e) => RefreshAllData();
 
-            btnSignOut = CreateToolbarButton("🚪 Sign Out", Color.FromArgb(70, 35, 40), Color.FromArgb(255, 170, 170), 85, btnTop, btnH);
-            btnSignOut.Click += BtnSignOut_Click;
-
-            // Arrange toolbar buttons horizontally
+            // Arrange toolbar buttons horizontally on the bottom tier
             int curX = 14;
-            Button[] buttons = { btnAddMovie, btnAddShow, btnEditMovie, btnDeleteMovie, btnCustomerView, btnRefresh, btnSignOut };
-            foreach (var btn in buttons)
+            Button[] toolbarButtons = { btnAddMovie, btnAddShow, btnEditMovie, btnDeleteMovie, btnRefresh };
+            foreach (var btn in toolbarButtons)
             {
                 btn.Location = new Point(curX, btnTop);
                 pnlTop.Controls.Add(btn);
                 curX += btn.Width + 8;
             }
+
+            pnlTop.Resize += (s, e) => LayoutTopHeader();
+            LayoutTopHeader();
 
             Controls.Add(pnlTop);
 
@@ -901,20 +914,59 @@ Thank you for booking with CineTicket!
             MessageBox.Show(receipt, $"Ticket Receipt - {booking.ReferenceCode}", MessageBoxButtons.OK, MessageBoxIcon.Information);
         }
 
-        private void BtnCustomerView_Click(object sender, EventArgs e)
+        private void LayoutTopHeader()
         {
-            Hide();
-            using (var customerForm = new Form1(isChildView: true))
+            if (pnlTop == null) return;
+            int right = pnlTop.ClientSize.Width - 14;
+            if (btnSignOut != null)
             {
-                customerForm.ShowDialog(this);
+                btnSignOut.Location = new Point(right - btnSignOut.Width, 10);
+                right = btnSignOut.Left - 8;
             }
-            Show();
-            RefreshAllData();
+            if (btnProfile != null)
+            {
+                btnProfile.Location = new Point(right - btnProfile.Width, 10);
+            }
+            if (lblTitle != null && lblAdminInfo != null)
+            {
+                lblAdminInfo.Location = new Point(lblTitle.Right + 16, 12);
+            }
+        }
+
+        private void OpenAdminProfile()
+        {
+            using (var profile = new UserProfileForm())
+            {
+                var res = profile.ShowDialog(this);
+                if (profile.RequestedSignOut || res == DialogResult.Abort)
+                {
+                    ProgramState.Logout();
+                    Close();
+                }
+                else
+                {
+                    UpdateAdminHeader();
+                    LayoutTopHeader();
+                }
+            }
+        }
+
+        private void UpdateAdminHeader()
+        {
+            if (lblAdminInfo == null) return;
+            string adminName = !string.IsNullOrWhiteSpace(ProgramState.CurrentUserFullName)
+                ? ProgramState.CurrentUserFullName
+                : (ProgramState.CurrentUserPhone ?? "Administrator");
+            lblAdminInfo.Text = $"👑 Administrator: {adminName} ({ProgramState.CurrentUserPhone})";
         }
 
         private void BtnSignOut_Click(object sender, EventArgs e)
         {
-            var res = MessageBox.Show("Are you sure you want to sign out of the Admin Portal?", "Sign Out", MessageBoxButtons.YesNo, MessageBoxIcon.Question);
+            var res = MessageBox.Show(
+                "Are you sure you want to sign out of the Admin Portal?\n\nYou will be returned to the sign-in screen.",
+                "Confirm Sign Out",
+                MessageBoxButtons.YesNo,
+                MessageBoxIcon.Question);
             if (res != DialogResult.Yes) return;
 
             ProgramState.Logout();

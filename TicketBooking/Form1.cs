@@ -395,22 +395,7 @@ namespace TicketBooking
         private void TriggerSignOut()
         {
             ProgramState.Logout();
-            UpdateUserSessionUi();
-
-            if (_isChildView)
-            {
-                Close();
-                return;
-            }
-
-            if (!PerformLogin())
-            {
-                Close();
-            }
-            else
-            {
-                InitData();
-            }
+            Close();
         }
 
         private void UpdateUserSessionUi()
@@ -778,6 +763,12 @@ namespace TicketBooking
         private void BtnPurchase_Click(object sender, EventArgs e)
         {
             if (_selectedShow == null || _selectedMovie == null) return;
+
+            if (ProgramState.CurrentUserIsAdmin)
+            {
+                MessageBox.Show("Administrators cannot book tickets. Please use the Admin Portal for cinema management.", "Admin Restriction", MessageBoxButtons.OK, MessageBoxIcon.Information);
+                return;
+            }
 
             if (!ProgramState.IsLoggedIn)
             {
