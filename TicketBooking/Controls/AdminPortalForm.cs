@@ -3,6 +3,7 @@ using System.Collections.Generic;
 using System.Drawing;
 using System.Linq;
 using System.Windows.Forms;
+using TicketBooking.Data;
 using TicketBooking.Models;
 using TicketBooking.Services;
 
@@ -21,6 +22,7 @@ namespace TicketBooking.Controls
         private Button btnEditMovie;
         private Button btnDeleteMovie;
         private Button btnRefresh;
+        private Button btnSeedCatalog;
 
         // KPI Ribbon Labels
         private Label lblKpiRevenue;
@@ -144,9 +146,25 @@ namespace TicketBooking.Controls
             btnRefresh = CreateToolbarButton("🔄 Refresh", Color.FromArgb(45, 52, 68), Color.White, 85, btnTop, btnH);
             btnRefresh.Click += (s, e) => RefreshAllData();
 
+            btnSeedCatalog = CreateToolbarButton("🎬 Re-seed Sample Movies", Color.FromArgb(32, 60, 88), Color.FromArgb(200, 230, 255), 175, btnTop, btnH);
+            btnSeedCatalog.Click += (s, e) =>
+            {
+                var confirm = MessageBox.Show(
+                    "This will ensure all 16 sample movies with rich descriptions, offline poster graphics, and scheduled showtimes are populated.\n\nProceed?",
+                    "Re-seed Sample Movies",
+                    MessageBoxButtons.YesNo,
+                    MessageBoxIcon.Question);
+                if (confirm == DialogResult.Yes)
+                {
+                    Database.SeedOrEnrichCatalog();
+                    RefreshAllData();
+                    MessageBox.Show("Cinema catalog has been refreshed with the full sample movie collection, posters, and scheduled showtimes!", "Catalog Re-seeded", MessageBoxButtons.OK, MessageBoxIcon.Information);
+                }
+            };
+
             // Arrange toolbar buttons horizontally on the bottom tier
             int curX = 14;
-            Button[] toolbarButtons = { btnAddMovie, btnAddShow, btnEditMovie, btnDeleteMovie, btnRefresh };
+            Button[] toolbarButtons = { btnAddMovie, btnAddShow, btnEditMovie, btnDeleteMovie, btnRefresh, btnSeedCatalog };
             foreach (var btn in toolbarButtons)
             {
                 btn.Location = new Point(curX, btnTop);

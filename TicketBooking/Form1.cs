@@ -151,8 +151,8 @@ namespace TicketBooking
             lblTitle.Location = new Point(132, 14);
             lblPriceBadge.Location = new Point(134, 46);
             lblMeta.Location = new Point(134, 70);
-            lblDescription.Location = new Point(134, 94);
-            lblDescription.MaximumSize = new Size(400, 50);
+            lblDescription.Location = new Point(134, 92);
+            lblDescription.MaximumSize = new Size(540, 52);
         }
 
         private void SetupAdminMovieControls()

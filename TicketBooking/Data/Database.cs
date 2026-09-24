@@ -1,6 +1,7 @@
 using System;
 using System.IO;
 using Microsoft.Data.Sqlite;
+using TicketBooking.Services;
 
 namespace TicketBooking.Data
 {
@@ -218,132 +219,170 @@ VALUES ($p2, 'Alice Walker', 'alice.walker@example.com', $h2, 0, $t);
                 if (result != null) adminId = Convert.ToInt64(result);
             }
 
-            // 2. Seed Movies and Shows if Movies table is empty
-            long movieCount = 0;
-            using (var countCmd = conn.CreateCommand())
+            // 2. Seed / enrich full catalog of movies, posters, and showtimes
+            SeedOrEnrichCatalog(conn, adminId);
+        }
+
+        public static void SeedOrEnrichCatalog(SqliteConnection conn = null, long adminId = 1)
+        {
+            bool closeConn = false;
+            if (conn == null)
             {
-                countCmd.CommandText = "SELECT COUNT(*) FROM Movies";
-                movieCount = (long)countCmd.ExecuteScalar();
+                conn = GetConnection();
+                closeConn = true;
             }
 
-            if (movieCount == 0)
+            try
             {
-                var movies = new[]
+                // 1. Ensure all 16 poster artwork files are generated on disk in Posters/
+                PosterService.EnsureAllPostersGenerated();
+
+                // 2. Clean up legacy placeholder movies with empty posters or test records if present
+                using (var cleanCmd = conn.CreateCommand())
                 {
-                    new {
-                        Title = "Neon Nights",
-                        Genre = "Sci-Fi / Action",
-                        Duration = 125,
-                        Price = 14.50,
-                        Rating = "8.9/10",
-                        AgeRating = "PG-13",
-                        Desc = "A neon-lit chase through a futuristic cyberpunk metropolis where memories can be bought and sold on the black market."
-                    },
-                    new {
-                        Title = "The Last Composer",
-                        Genre = "Drama / Music",
-                        Duration = 98,
-                        Price = 11.00,
-                        Rating = "8.4/10",
-                        AgeRating = "PG",
-                        Desc = "An aging master composer discovers his passion rekindled when a mysterious young street prodigy arrives on his doorstep."
-                    },
-                    new {
-                        Title = "Skybound Horizons",
-                        Genre = "Adventure / Family",
-                        Duration = 105,
-                        Price = 12.50,
-                        Rating = "8.1/10",
-                        AgeRating = "G",
-                        Desc = "Two daring siblings construct a backyard airship and discover a wondrous lost floating kingdom above the clouds."
-                    },
-                    new {
-                        Title = "Midnight Bakery",
-                        Genre = "Romance / Comedy",
-                        Duration = 90,
-                        Price = 10.00,
-                        Rating = "7.8/10",
-                        AgeRating = "PG",
-                        Desc = "A dedicated night-shift baker and an eccentric, sleep-deprived programmer collide over warm croissants and broken algorithms."
-                    },
-                    new {
-                        Title = "Galactic Odyssey",
-                        Genre = "Sci-Fi / Space",
-                        Duration = 140,
-                        Price = 15.00,
-                        Rating = "9.1/10",
-                        AgeRating = "PG-13",
-                        Desc = "A deep-space expedition encounters an enigmatic celestial artifact orbiting a dead star, changing humanity's destiny forever."
+                    cleanCmd.CommandText = @"
+DELETE FROM Movies 
+WHERE (PosterPath IS NULL OR PosterPath = '') 
+   OR Title LIKE 'Automated Test%' 
+   OR Title = 'Interstellar Journey' 
+   OR Title LIKE 'Cyberpunk Neo %'
+   OR Title IN ('Neon Nights', 'The Last Composer', 'Skybound Horizons', 'Midnight Bakery', 'Galactic Odyssey');";
+                    cleanCmd.ExecuteNonQuery();
+                }
+
+                // 3. Find admin user id if not provided
+                if (adminId <= 0)
+                {
+                    using (var getAdminCmd = conn.CreateCommand())
+                    {
+                        getAdminCmd.CommandText = "SELECT Id FROM Users WHERE Phone = '085909135' LIMIT 1";
+                        var result = getAdminCmd.ExecuteScalar();
+                        if (result != null) adminId = Convert.ToInt64(result);
                     }
-                };
+                }
 
                 DateTime today = DateTime.Today;
 
-                foreach (var m in movies)
+                // 4. Seed or update all 16 rich movies in the catalog
+                foreach (var m in PosterService.Catalog)
                 {
+                    string posterRelativePath = "Posters/" + m.PosterFileName;
                     long movieId = 0;
-                    using (var insCmd = conn.CreateCommand())
+
+                    // Check if movie already exists by Title
+                    using (var checkCmd = conn.CreateCommand())
                     {
-                        insCmd.CommandText = @"
-INSERT INTO Movies (Title, Genre, DurationMinutes, Description, PosterPath, Price, Rating, AgeRating)
-VALUES ($t, $g, $d, $desc, '', $pr, $rat, $age);
-SELECT last_insert_rowid();
-";
-                        insCmd.Parameters.AddWithValue("$t", m.Title);
-                        insCmd.Parameters.AddWithValue("$g", m.Genre);
-                        insCmd.Parameters.AddWithValue("$d", m.Duration);
-                        insCmd.Parameters.AddWithValue("$desc", m.Desc);
-                        insCmd.Parameters.AddWithValue("$pr", m.Price);
-                        insCmd.Parameters.AddWithValue("$rat", m.Rating);
-                        insCmd.Parameters.AddWithValue("$age", m.AgeRating);
-                        movieId = Convert.ToInt64(insCmd.ExecuteScalar());
+                        checkCmd.CommandText = "SELECT Id FROM Movies WHERE Title = $t LIMIT 1";
+                        checkCmd.Parameters.AddWithValue("$t", m.Title);
+                        var existing = checkCmd.ExecuteScalar();
+                        if (existing != null)
+                        {
+                            movieId = Convert.ToInt64(existing);
+                            // Update existing movie with enriched description, poster, ratings
+                            using (var updateCmd = conn.CreateCommand())
+                            {
+                                updateCmd.CommandText = @"
+UPDATE Movies 
+SET Genre = $g, DurationMinutes = $dur, Description = $desc, PosterPath = $post, 
+    Price = $pr, Rating = $rat, AgeRating = $age, ReleaseDate = $rd 
+WHERE Id = $id";
+                                updateCmd.Parameters.AddWithValue("$g", m.Genre);
+                                updateCmd.Parameters.AddWithValue("$dur", m.DurationMinutes);
+                                updateCmd.Parameters.AddWithValue("$desc", m.Description);
+                                updateCmd.Parameters.AddWithValue("$post", posterRelativePath);
+                                updateCmd.Parameters.AddWithValue("$pr", m.Price);
+                                updateCmd.Parameters.AddWithValue("$rat", m.Rating);
+                                updateCmd.Parameters.AddWithValue("$age", m.AgeRating);
+                                updateCmd.Parameters.AddWithValue("$rd", m.ReleaseDate);
+                                updateCmd.Parameters.AddWithValue("$id", movieId);
+                                updateCmd.ExecuteNonQuery();
+                            }
+                        }
+                        else
+                        {
+                            // Insert new movie
+                            using (var insCmd = conn.CreateCommand())
+                            {
+                                insCmd.CommandText = @"
+INSERT INTO Movies (Title, Genre, DurationMinutes, Description, PosterPath, Price, Rating, AgeRating, ReleaseDate)
+VALUES ($t, $g, $dur, $desc, $post, $pr, $rat, $age, $rd);
+SELECT last_insert_rowid();";
+                                insCmd.Parameters.AddWithValue("$t", m.Title);
+                                insCmd.Parameters.AddWithValue("$g", m.Genre);
+                                insCmd.Parameters.AddWithValue("$dur", m.DurationMinutes);
+                                insCmd.Parameters.AddWithValue("$desc", m.Description);
+                                insCmd.Parameters.AddWithValue("$post", posterRelativePath);
+                                insCmd.Parameters.AddWithValue("$pr", m.Price);
+                                insCmd.Parameters.AddWithValue("$rat", m.Rating);
+                                insCmd.Parameters.AddWithValue("$age", m.AgeRating);
+                                insCmd.Parameters.AddWithValue("$rd", m.ReleaseDate);
+                                movieId = Convert.ToInt64(insCmd.ExecuteScalar());
+                            }
+                        }
                     }
 
-                    // Create 3 shows for each movie
-                    var showTimes = new[]
+                    // 5. Ensure shows exist for this movie
+                    long showCount = 0;
+                    using (var showCountCmd = conn.CreateCommand())
                     {
-                        new { Time = today.AddHours(14).ToString("yyyy-MM-dd 14:00:00"), Hall = "Hall 1" },
-                        new { Time = today.AddHours(18).AddMinutes(30).ToString("yyyy-MM-dd 18:30:00"), Hall = "Hall 1" },
-                        new { Time = today.AddDays(1).AddHours(20).ToString("yyyy-MM-dd 20:00:00"), Hall = "Hall 2 (IMAX)" }
-                    };
+                        showCountCmd.CommandText = "SELECT COUNT(*) FROM Shows WHERE MovieId = $mid";
+                        showCountCmd.Parameters.AddWithValue("$mid", movieId);
+                        showCount = (long)showCountCmd.ExecuteScalar();
+                    }
 
-                    for (int sIdx = 0; sIdx < showTimes.Length; sIdx++)
+                    if (showCount < 3)
                     {
-                        var s = showTimes[sIdx];
-                        long showId = 0;
-                        using (var showCmd = conn.CreateCommand())
+                        var showSchedule = new[]
                         {
-                            showCmd.CommandText = @"
+                            new { Time = today.AddHours(14).ToString("yyyy-MM-dd 14:00:00"), Hall = "Hall 1 (Standard)" },
+                            new { Time = today.AddHours(17).AddMinutes(30).ToString("yyyy-MM-dd 17:30:00"), Hall = "Hall 2 (Dolby Atmos)" },
+                            new { Time = today.AddHours(20).AddMinutes(45).ToString("yyyy-MM-dd 20:45:00"), Hall = "Hall 3 (IMAX Laser)" },
+                            new { Time = today.AddDays(1).AddHours(15).AddMinutes(15).ToString("yyyy-MM-dd 15:15:00"), Hall = "Hall 1 (Standard)" },
+                            new { Time = today.AddDays(1).AddHours(19).ToString("yyyy-MM-dd 19:00:00"), Hall = "Hall 3 (IMAX Laser)" }
+                        };
+
+                        for (int sIdx = 0; sIdx < showSchedule.Length; sIdx++)
+                        {
+                            var s = showSchedule[sIdx];
+                            long showId = 0;
+                            using (var insShowCmd = conn.CreateCommand())
+                            {
+                                insShowCmd.CommandText = @"
 INSERT INTO Shows (MovieId, ShowTime, HallName, TotalRows, TotalCols)
 VALUES ($mid, $st, $hn, 6, 8);
-SELECT last_insert_rowid();
-";
-                            showCmd.Parameters.AddWithValue("$mid", movieId);
-                            showCmd.Parameters.AddWithValue("$st", s.Time);
-                            showCmd.Parameters.AddWithValue("$hn", s.Hall);
-                            showId = Convert.ToInt64(showCmd.ExecuteScalar());
-                        }
+SELECT last_insert_rowid();";
+                                insShowCmd.Parameters.AddWithValue("$mid", movieId);
+                                insShowCmd.Parameters.AddWithValue("$st", s.Time);
+                                insShowCmd.Parameters.AddWithValue("$hn", s.Hall);
+                                showId = Convert.ToInt64(insShowCmd.ExecuteScalar());
+                            }
 
-                        // Seed sample pre-booked seats
-                        if (sIdx == 0 && (movieId == 1 || movieId == 2))
-                        {
-                            using (var bCmd = conn.CreateCommand())
+                            // Pre-book sample seats for prime evening shows on the first 3 movies
+                            if (sIdx == 1 && movieId <= 3)
                             {
-                                bCmd.CommandText = @"
+                                using (var bCmd = conn.CreateCommand())
+                                {
+                                    bCmd.CommandText = @"
 INSERT INTO Bookings (UserId, ShowId, SeatCode, SeatRow, SeatCol, Price, BookingTime, Status, ReferenceCode)
-VALUES ($uid, $sid, 'C4', 2, 3, $pr, $bt, 'Confirmed', '#CB-DEMO-001');
+VALUES ($uid, $sid, 'C4', 2, 3, $pr, $bt, 'Confirmed', $ref1);
 INSERT INTO Bookings (UserId, ShowId, SeatCode, SeatRow, SeatCol, Price, BookingTime, Status, ReferenceCode)
-VALUES ($uid, $sid, 'C5', 2, 4, $pr, $bt, 'Confirmed', '#CB-DEMO-002');
-";
-                                bCmd.Parameters.AddWithValue("$uid", adminId);
-                                bCmd.Parameters.AddWithValue("$sid", showId);
-                                bCmd.Parameters.AddWithValue("$pr", m.Price);
-                                bCmd.Parameters.AddWithValue("$bt", DateTime.Now.AddHours(-2).ToString("yyyy-MM-dd HH:mm:ss"));
-                                bCmd.ExecuteNonQuery();
+VALUES ($uid, $sid, 'C5', 2, 4, $pr, $bt, 'Confirmed', $ref2);";
+                                    bCmd.Parameters.AddWithValue("$uid", adminId);
+                                    bCmd.Parameters.AddWithValue("$sid", showId);
+                                    bCmd.Parameters.AddWithValue("$pr", m.Price);
+                                    bCmd.Parameters.AddWithValue("$bt", DateTime.Now.AddHours(-1).ToString("yyyy-MM-dd HH:mm:ss"));
+                                    bCmd.Parameters.AddWithValue("$ref1", $"#CB-{movieId:D2}01");
+                                    bCmd.Parameters.AddWithValue("$ref2", $"#CB-{movieId:D2}02");
+                                    bCmd.ExecuteNonQuery();
+                                }
                             }
                         }
                     }
                 }
+            }
+            finally
+            {
+                if (closeConn) conn.Dispose();
             }
         }
     }

@@ -67,24 +67,56 @@ namespace TicketBooking.Services
                         }
                     }
 
-                    // Download to disk cache
-                    using (var wc = new WebClient())
+                    // Download to disk cache with 3.5s timeout so offline machines don't hang
+                    try
                     {
-                        byte[] data = wc.DownloadData(pathOrUrl);
-                        File.WriteAllBytes(diskPath, data);
-                        using (var ms = new MemoryStream(data))
+                        var req = (HttpWebRequest)WebRequest.Create(pathOrUrl);
+                        req.Timeout = 3500;
+                        req.ReadWriteTimeout = 3500;
+                        req.UserAgent = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) CineTicket/1.0";
+                        using (var resp = req.GetResponse())
+                        using (var stream = resp.GetResponseStream())
+                        using (var ms = new MemoryStream())
                         {
-                            var img = new Bitmap(Image.FromStream(ms));
-                            _memoryCache[pathOrUrl] = img;
-                            return img;
+                            stream.CopyTo(ms);
+                            byte[] data = ms.ToArray();
+                            File.WriteAllBytes(diskPath, data);
+                            using (var imgMs = new MemoryStream(data))
+                            {
+                                var img = new Bitmap(Image.FromStream(imgMs));
+                                _memoryCache[pathOrUrl] = img;
+                                return img;
+                            }
+                        }
+                    }
+                    catch
+                    {
+                        // Web download failed or timed out; fall through to local lookup or placeholder
+                    }
+                }
+
+                // 3. Local file (supports absolute paths, relative paths, and PostersFolder lookup)
+                string localFile = pathOrUrl;
+                if (!File.Exists(localFile))
+                {
+                    string posterCandidate = Path.Combine(PosterService.PostersFolder, Path.GetFileName(localFile));
+                    if (File.Exists(posterCandidate))
+                    {
+                        localFile = posterCandidate;
+                    }
+                    else
+                    {
+                        string candidate = Path.Combine(AppDomain.CurrentDomain.BaseDirectory, localFile.TrimStart('/', '\\'));
+                        if (File.Exists(candidate))
+                        {
+                            localFile = candidate;
                         }
                     }
                 }
 
-                // 3. Local file
-                if (File.Exists(pathOrUrl))
+                if (File.Exists(localFile))
                 {
-                    var img = LoadImageFromFile(pathOrUrl);
+                    var img = LoadImageFromFile(localFile);
                     if (img != null)
                     {
                         _memoryCache[pathOrUrl] = img;
