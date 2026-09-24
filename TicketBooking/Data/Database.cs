@@ -266,7 +266,7 @@ WHERE (PosterPath IS NULL OR PosterPath = '')
                 // 4. Seed or update all 16 rich movies in the catalog
                 foreach (var m in PosterService.Catalog)
                 {
-                    string posterRelativePath = "Posters/" + m.PosterFileName;
+                    string posterVal = !string.IsNullOrEmpty(m.PosterUrl) ? m.PosterUrl : ("Posters/" + m.PosterFileName);
                     long movieId = 0;
 
                     // Check if movie already exists by Title
@@ -289,7 +289,7 @@ WHERE Id = $id";
                                 updateCmd.Parameters.AddWithValue("$g", m.Genre);
                                 updateCmd.Parameters.AddWithValue("$dur", m.DurationMinutes);
                                 updateCmd.Parameters.AddWithValue("$desc", m.Description);
-                                updateCmd.Parameters.AddWithValue("$post", posterRelativePath);
+                                updateCmd.Parameters.AddWithValue("$post", posterVal);
                                 updateCmd.Parameters.AddWithValue("$pr", m.Price);
                                 updateCmd.Parameters.AddWithValue("$rat", m.Rating);
                                 updateCmd.Parameters.AddWithValue("$age", m.AgeRating);
@@ -311,7 +311,7 @@ SELECT last_insert_rowid();";
                                 insCmd.Parameters.AddWithValue("$g", m.Genre);
                                 insCmd.Parameters.AddWithValue("$dur", m.DurationMinutes);
                                 insCmd.Parameters.AddWithValue("$desc", m.Description);
-                                insCmd.Parameters.AddWithValue("$post", posterRelativePath);
+                                insCmd.Parameters.AddWithValue("$post", posterVal);
                                 insCmd.Parameters.AddWithValue("$pr", m.Price);
                                 insCmd.Parameters.AddWithValue("$rat", m.Rating);
                                 insCmd.Parameters.AddWithValue("$age", m.AgeRating);

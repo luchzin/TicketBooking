@@ -67,12 +67,12 @@ namespace TicketBooking.Services
                         }
                     }
 
-                    // Download to disk cache with 3.5s timeout so offline machines don't hang
+                    // Download to disk cache with 8.0s timeout so offline machines don't hang
                     try
                     {
                         var req = (HttpWebRequest)WebRequest.Create(pathOrUrl);
-                        req.Timeout = 3500;
-                        req.ReadWriteTimeout = 3500;
+                        req.Timeout = 8000;
+                        req.ReadWriteTimeout = 8000;
                         req.UserAgent = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) CineTicket/1.0";
                         using (var resp = req.GetResponse())
                         using (var stream = resp.GetResponseStream())
@@ -80,12 +80,15 @@ namespace TicketBooking.Services
                         {
                             stream.CopyTo(ms);
                             byte[] data = ms.ToArray();
-                            File.WriteAllBytes(diskPath, data);
-                            using (var imgMs = new MemoryStream(data))
+                            if (data != null && data.Length > 0)
                             {
-                                var img = new Bitmap(Image.FromStream(imgMs));
-                                _memoryCache[pathOrUrl] = img;
-                                return img;
+                                try { File.WriteAllBytes(diskPath, data); } catch { }
+                                using (var imgMs = new MemoryStream(data))
+                                {
+                                    var img = new Bitmap(Image.FromStream(imgMs));
+                                    _memoryCache[pathOrUrl] = img;
+                                    return img;
+                                }
                             }
                         }
                     }
