@@ -232,11 +232,45 @@ namespace TicketBooking.Controls
             Controls.Add(pnlTicketCard);
 
             // Bottom Buttons
+            var btnSavePdf = new Button
+            {
+                Text = "📄 Save PDF to Desktop",
+                Location = new Point(20, 626),
+                Size = new Size(185, 36),
+                BackColor = Color.FromArgb(0, 160, 140),
+                ForeColor = Color.White,
+                FlatStyle = FlatStyle.Flat,
+                Font = new Font("Segoe UI", 9F, FontStyle.Bold),
+                Cursor = Cursors.Hand
+            };
+            btnSavePdf.FlatAppearance.BorderSize = 0;
+            btnSavePdf.Click += (s, e) =>
+            {
+                TicketPdfService.SaveToDesktopWithPrompt(_booking, this, askToOpen: true);
+            };
+
+            var btnPrint = new Button
+            {
+                Text = "🖨️ Print Pass",
+                Location = new Point(215, 626),
+                Size = new Size(130, 36),
+                BackColor = Color.FromArgb(46, 62, 88),
+                ForeColor = Color.White,
+                FlatStyle = FlatStyle.Flat,
+                Font = new Font("Segoe UI", 9F, FontStyle.Bold),
+                Cursor = Cursors.Hand
+            };
+            btnPrint.FlatAppearance.BorderSize = 0;
+            btnPrint.Click += (s, e) =>
+            {
+                TicketPdfService.PrintBooking(_booking, this);
+            };
+
             var btnCopy = new Button
             {
-                Text = "📋 Copy Ticket Text",
-                Location = new Point(20, 626),
-                Size = new Size(160, 36),
+                Text = "📋 Copy Text",
+                Location = new Point(355, 626),
+                Size = new Size(125, 36),
                 BackColor = Color.FromArgb(36, 46, 62),
                 ForeColor = Color.FromArgb(180, 210, 245),
                 FlatStyle = FlatStyle.Flat,
@@ -250,30 +284,11 @@ namespace TicketBooking.Controls
                 MessageBox.Show("Ticket details copied to clipboard!", "Copied", MessageBoxButtons.OK, MessageBoxIcon.Information);
             };
 
-            var btnPrint = new Button
-            {
-                Text = "🖨️ Print / Save Pass",
-                Location = new Point(190, 626),
-                Size = new Size(160, 36),
-                BackColor = Color.FromArgb(0, 160, 140),
-                ForeColor = Color.White,
-                FlatStyle = FlatStyle.Flat,
-                Font = new Font("Segoe UI", 9F, FontStyle.Bold),
-                Cursor = Cursors.Hand
-            };
-            btnPrint.FlatAppearance.BorderSize = 0;
-            btnPrint.Click += (s, e) =>
-            {
-                Clipboard.SetText(GenerateReceiptText());
-                MessageBox.Show($"E-Ticket #{_booking.ReferenceCode} sent to default printer queue / copied for saving.\n\nThank you for choosing CineTicket!",
-                    "Ticket Printed", MessageBoxButtons.OK, MessageBoxIcon.Information);
-            };
-
             var btnClose = new Button
             {
                 Text = "Close",
-                Location = new Point(480, 626),
-                Size = new Size(120, 36),
+                Location = new Point(490, 626),
+                Size = new Size(110, 36),
                 BackColor = Color.FromArgb(44, 52, 68),
                 ForeColor = Color.White,
                 FlatStyle = FlatStyle.Flat,
@@ -283,8 +298,9 @@ namespace TicketBooking.Controls
             btnClose.FlatAppearance.BorderSize = 0;
             btnClose.Click += (s, e) => Close();
 
-            Controls.Add(btnCopy);
+            Controls.Add(btnSavePdf);
             Controls.Add(btnPrint);
+            Controls.Add(btnCopy);
             Controls.Add(btnClose);
 
             CancelButton = btnClose;

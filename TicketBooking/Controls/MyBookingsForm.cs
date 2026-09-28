@@ -36,6 +36,7 @@ namespace TicketBooking.Controls
         private Label lblDetailPrice;
         private Button btnCopyRef;
         private Button btnViewReceipt;
+        private Button btnExportPdf;
         private Button btnCancelBooking;
 
         private List<Booking> _allBookings = new List<Booking>();
@@ -198,7 +199,6 @@ namespace TicketBooking.Controls
             pnlRightDetail.SetDoubleBuffered(true);
 
             BuildDetailInspector();
-            Controls.Add(pnlRightDetail);
 
             // ================= 4. MASTER BOOKINGS GRID =================
             var pnlGridContainer = new Panel
@@ -233,7 +233,10 @@ namespace TicketBooking.Controls
             dgvBookings.CellDoubleClick += (s, e) => BtnViewReceipt_Click(btnViewReceipt, EventArgs.Empty);
 
             pnlGridContainer.Controls.Add(dgvBookings);
+
+            Controls.Add(pnlRightDetail);
             Controls.Add(pnlGridContainer);
+            pnlGridContainer.BringToFront();
         }
 
         private void BuildDetailInspector()
@@ -382,7 +385,7 @@ namespace TicketBooking.Controls
             {
                 Text = "🧾 View / Print E-Ticket",
                 Location = new Point(14, 385),
-                Size = new Size(310, 42),
+                Size = new Size(310, 40),
                 BackColor = Color.FromArgb(0, 160, 140),
                 ForeColor = Color.White,
                 FlatStyle = FlatStyle.Flat,
@@ -393,11 +396,26 @@ namespace TicketBooking.Controls
             btnViewReceipt.Click += BtnViewReceipt_Click;
             pnlRightDetail.Controls.Add(btnViewReceipt);
 
+            btnExportPdf = new Button
+            {
+                Text = "📄 Save PDF to Desktop",
+                Location = new Point(14, 432),
+                Size = new Size(310, 38),
+                BackColor = Color.FromArgb(46, 75, 110),
+                ForeColor = Color.White,
+                FlatStyle = FlatStyle.Flat,
+                Font = new Font("Segoe UI", 9F, FontStyle.Bold),
+                Cursor = Cursors.Hand
+            };
+            btnExportPdf.FlatAppearance.BorderSize = 0;
+            btnExportPdf.Click += BtnExportPdf_Click;
+            pnlRightDetail.Controls.Add(btnExportPdf);
+
             btnCancelBooking = new Button
             {
                 Text = "❌ Cancel Booking & Refund",
-                Location = new Point(14, 436),
-                Size = new Size(310, 40),
+                Location = new Point(14, 477),
+                Size = new Size(310, 38),
                 BackColor = Color.FromArgb(70, 32, 38),
                 ForeColor = Color.FromArgb(255, 160, 160),
                 FlatStyle = FlatStyle.Flat,
@@ -411,8 +429,8 @@ namespace TicketBooking.Controls
             var btnClose = new Button
             {
                 Text = "Close Window",
-                Location = new Point(14, 490),
-                Size = new Size(310, 38),
+                Location = new Point(14, 522),
+                Size = new Size(310, 36),
                 BackColor = Color.FromArgb(36, 44, 58),
                 ForeColor = Color.White,
                 FlatStyle = FlatStyle.Flat,
@@ -603,6 +621,7 @@ namespace TicketBooking.Controls
 
             btnCancelBooking.Enabled = b.IsActive;
             btnViewReceipt.Enabled = true;
+            btnExportPdf.Enabled = true;
             btnCopyRef.Enabled = true;
         }
 
@@ -622,7 +641,19 @@ namespace TicketBooking.Controls
 
             btnCancelBooking.Enabled = false;
             btnViewReceipt.Enabled = false;
+            btnExportPdf.Enabled = false;
             btnCopyRef.Enabled = false;
+        }
+
+        private void BtnExportPdf_Click(object sender, EventArgs e)
+        {
+            if (_selectedBooking == null)
+            {
+                MessageBox.Show("Please select a booking to export its PDF e-ticket.", "Selection Required", MessageBoxButtons.OK, MessageBoxIcon.Information);
+                return;
+            }
+
+            TicketPdfService.SaveToDesktopWithPrompt(_selectedBooking, this, askToOpen: true);
         }
 
         private void BtnViewReceipt_Click(object sender, EventArgs e)
