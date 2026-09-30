@@ -66,8 +66,8 @@ namespace TicketBooking
             // topBarPanel
             this.topBarPanel = new System.Windows.Forms.Panel();
             this.topBarPanel.Dock = System.Windows.Forms.DockStyle.Top;
-            this.topBarPanel.Height = 56;
-            this.topBarPanel.BackColor = System.Drawing.Color.FromArgb(20, 25, 33);
+            this.topBarPanel.Height = 84;
+            this.topBarPanel.BackColor = System.Drawing.Color.FromArgb(12, 16, 24);
             this.topBarPanel.Padding = new System.Windows.Forms.Padding(16, 0, 16, 0);
 
             this.lblBrand = new System.Windows.Forms.Label();
