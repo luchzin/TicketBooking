@@ -18,7 +18,6 @@ namespace TicketBooking.Controls
         private Button btnProfile;
         private Button btnSignOut;
         private Button btnAddMovie;
-        private Button btnAddShow;
         private Button btnEditMovie;
         private Button btnDeleteMovie;
         private Button btnRefresh;
@@ -40,6 +39,7 @@ namespace TicketBooking.Controls
         // Tab 1: Movies & Shows
         private DataGridView dgvMovies;
         private DataGridView dgvShows;
+        private Panel pnlShowBar;
         private PictureBox picMovieThumb;
         private Label lblSelectedMovieTitle;
         private Button btnAddShowUnderGrid;
@@ -130,12 +130,9 @@ namespace TicketBooking.Controls
             int btnTop = 48;
             int btnH = 30;
 
-            btnAddMovie = CreateToolbarButton("➕ Add Movie & Showtime", Color.FromArgb(0, 140, 120), Color.White, 175, btnTop, btnH);
+            btnAddMovie = CreateToolbarButton("➕ Add Movie", Color.FromArgb(0, 140, 120), Color.White, 115, btnTop, btnH);
             btnAddMovie.Font = new Font("Segoe UI", 9F, FontStyle.Bold);
             btnAddMovie.Click += BtnAddMovie_Click;
-
-            btnAddShow = CreateToolbarButton("🕒 Add Showtime", Color.FromArgb(90, 60, 150), Color.White, 125, btnTop, btnH);
-            btnAddShow.Click += BtnAddShow_Click;
 
             btnEditMovie = CreateToolbarButton("✏️ Edit Movie", Color.FromArgb(40, 65, 95), Color.White, 105, btnTop, btnH);
             btnEditMovie.Click += BtnEditMovie_Click;
@@ -164,7 +161,7 @@ namespace TicketBooking.Controls
 
             // Arrange toolbar buttons horizontally on the bottom tier
             int curX = 14;
-            Button[] toolbarButtons = { btnAddMovie, btnAddShow, btnEditMovie, btnDeleteMovie, btnRefresh, btnSeedCatalog };
+            Button[] toolbarButtons = { btnAddMovie, btnEditMovie, btnDeleteMovie, btnRefresh, btnSeedCatalog };
             foreach (var btn in toolbarButtons)
             {
                 btn.Location = new Point(curX, btnTop);
@@ -221,6 +218,12 @@ namespace TicketBooking.Controls
             tabControl.TabPages.Add(tabCustomers);
 
             Controls.Add(tabControl);
+
+            // Establish correct docking z-order:
+            // pnlTop at topmost (Y=0), pnlKpi below it (Y=88), tabControl filling remaining space below
+            pnlKpi.SendToBack();
+            pnlTop.SendToBack();
+            tabControl.BringToFront();
 
             BuildMoviesTab();
             BuildBookingsTab();
@@ -313,7 +316,7 @@ namespace TicketBooking.Controls
             var pnlBottomShows = new Panel { Dock = DockStyle.Fill, Padding = new Padding(12, 6, 12, 10) };
             split.Panel2.Controls.Add(pnlBottomShows);
 
-            var pnlShowBar = new Panel { Dock = DockStyle.Top, Height = 36 };
+            pnlShowBar = new Panel { Dock = DockStyle.Top, Height = 36 };
 
             picMovieThumb = new PictureBox
             {
@@ -331,20 +334,21 @@ namespace TicketBooking.Controls
                 Font = new Font("Segoe UI", 9.5F, FontStyle.Bold),
                 ForeColor = Color.FromArgb(0, 190, 160),
                 Location = new Point(34, 8),
-                AutoSize = true
+                AutoSize = true,
+                AutoEllipsis = true
             };
             pnlShowBar.Controls.Add(lblSelectedMovieTitle);
 
             btnAddShowUnderGrid = new Button
             {
                 Text = "➕ Add Showtime to This Movie",
-                Location = new Point(480, 4),
                 Size = new Size(210, 28),
                 BackColor = Color.FromArgb(90, 60, 150),
                 ForeColor = Color.White,
                 FlatStyle = FlatStyle.Flat,
                 Font = new Font("Segoe UI", 8.5F, FontStyle.Bold),
-                Cursor = Cursors.Hand
+                Cursor = Cursors.Hand,
+                Anchor = AnchorStyles.Top | AnchorStyles.Right
             };
             btnAddShowUnderGrid.FlatAppearance.BorderSize = 0;
             btnAddShowUnderGrid.Click += BtnAddShow_Click;
@@ -353,17 +357,20 @@ namespace TicketBooking.Controls
             btnDeleteShowUnderGrid = new Button
             {
                 Text = "🗑️ Remove Showtime",
-                Location = new Point(700, 4),
                 Size = new Size(150, 28),
                 BackColor = Color.FromArgb(90, 35, 40),
                 ForeColor = Color.FromArgb(255, 190, 190),
                 FlatStyle = FlatStyle.Flat,
                 Font = new Font("Segoe UI", 8.5F),
-                Cursor = Cursors.Hand
+                Cursor = Cursors.Hand,
+                Anchor = AnchorStyles.Top | AnchorStyles.Right
             };
             btnDeleteShowUnderGrid.FlatAppearance.BorderSize = 0;
             btnDeleteShowUnderGrid.Click += BtnDeleteShow_Click;
             pnlShowBar.Controls.Add(btnDeleteShowUnderGrid);
+
+            pnlShowBar.Resize += (s, e) => LayoutShowBar();
+            LayoutShowBar();
 
             pnlBottomShows.Controls.Add(pnlShowBar);
 
@@ -504,6 +511,7 @@ namespace TicketBooking.Controls
             dgvBookings.Columns["Status"].Width = 90;
             dgvBookings.Columns["BookingTime"].Width = 130;
 
+            dgvBookings.CellDoubleClick += (s, e) => BtnPrintReceipt_Click(btnPrintReceipt, EventArgs.Empty);
             tabBookings.Controls.Add(dgvBookings);
             dgvBookings.BringToFront();
         }
@@ -624,6 +632,7 @@ namespace TicketBooking.Controls
                 picMovieThumb.Image = null;
                 dgvShows.Rows.Clear();
                 lblSelectedMovieTitle.Text = "🕒 Scheduled Showtimes for Selected Movie: (None)";
+                LayoutShowBar();
             }
         }
 
@@ -641,6 +650,7 @@ namespace TicketBooking.Controls
         {
             _selectedMovie = m;
             lblSelectedMovieTitle.Text = $"🕒 Showtimes for: {m.Title} (Came out: {m.ReleaseDateFormatted})";
+            LayoutShowBar();
             ImageService.LoadImageAsync(m.PosterPath, picMovieThumb, m.Title);
 
             dgvShows.Rows.Clear();
@@ -909,27 +919,10 @@ namespace TicketBooking.Controls
             var booking = _allBookings.FirstOrDefault(b => b.Id == bookingId);
             if (booking == null) return;
 
-            string receipt =
-$@"==================================================
-           CINETICKET CINEMA RECEIPT
-==================================================
-Booking Ref:   {booking.ReferenceCode}
-Status:        {booking.Status.ToUpper()}
-Date Issued:   {booking.BookingTime:yyyy-MM-dd HH:mm:ss}
-
-Customer:      {booking.CustomerName}
-Phone:         {booking.CustomerPhone}
---------------------------------------------------
-Movie:         {booking.MovieTitle}
-Hall:          {booking.HallName}
-Showtime:      {booking.ShowTime:yyyy-MM-dd hh:mm tt}
-Seat Number:   {booking.SeatCode}
-Ticket Price:  ${booking.Price:N2}
-==================================================
-Thank you for booking with CineTicket!
-==================================================";
-
-            MessageBox.Show(receipt, $"Ticket Receipt - {booking.ReferenceCode}", MessageBoxButtons.OK, MessageBoxIcon.Information);
+            using (var receiptForm = new TicketReceiptForm(booking))
+            {
+                receiptForm.ShowDialog(this);
+            }
         }
 
         private void LayoutTopHeader()
@@ -948,6 +941,27 @@ Thank you for booking with CineTicket!
             if (lblTitle != null && lblAdminInfo != null)
             {
                 lblAdminInfo.Location = new Point(lblTitle.Right + 16, 12);
+            }
+        }
+
+        private void LayoutShowBar()
+        {
+            if (pnlShowBar == null) return;
+            int right = pnlShowBar.ClientSize.Width - 4;
+            if (btnDeleteShowUnderGrid != null)
+            {
+                btnDeleteShowUnderGrid.Location = new Point(right - btnDeleteShowUnderGrid.Width, 4);
+                right = btnDeleteShowUnderGrid.Left - 8;
+            }
+            if (btnAddShowUnderGrid != null)
+            {
+                btnAddShowUnderGrid.Location = new Point(right - btnAddShowUnderGrid.Width, 4);
+                right = btnAddShowUnderGrid.Left - 10;
+            }
+            if (lblSelectedMovieTitle != null)
+            {
+                int maxW = Math.Max(80, right - lblSelectedMovieTitle.Left);
+                lblSelectedMovieTitle.MaximumSize = new Size(maxW, 26);
             }
         }
 
